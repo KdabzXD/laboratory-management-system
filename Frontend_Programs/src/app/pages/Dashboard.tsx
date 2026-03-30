@@ -2,112 +2,130 @@ import { Users, Microscope, FlaskConical, Building2, ShoppingCart, TrendingUp, T
 import { StatCard } from '../components/StatCard';
 import { ActivityTable } from '../components/ActivityTable';
 import { motion } from 'motion/react';
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
+import { apiGet } from '../api/client';
 
-const stats = [
-  { title: 'Total Scientists', value: 127, icon: Users, trend: { value: 12, isPositive: true } },
-  { title: 'Total Equipment', value: 342, icon: Microscope, trend: { value: 8, isPositive: true } },
-  { title: 'Materials Cost', value: 'KSh 2.45M', icon: FlaskConical, trend: { value: -3, isPositive: false }, isMonetary: true },
-  { title: 'Total Suppliers', value: 56, icon: Building2, trend: { value: 5, isPositive: true } },
-  { title: 'Total Purchases', value: 892, icon: ShoppingCart, trend: { value: 15, isPositive: true } },
-];
+const chartColors = ['#06b6d4', '#14b8a6', '#0891b2', '#0d9488', '#22d3ee', '#0ea5e9'];
 
-const equipmentAssignments = [
-  {
-    id: '1',
-    name: 'Advanced Spectrophotometer',
-    assignedTo: 'Dr. Sarah Chen',
-    status: 'in-progress' as const,
-    date: '2026-03-24',
-  },
-  {
-    id: '2',
-    name: 'PCR Thermal Cycler',
-    assignedTo: 'Dr. Michael Ross',
-    status: 'completed' as const,
-    date: '2026-03-23',
-  },
-  {
-    id: '3',
-    name: 'Centrifuge X-200',
-    assignedTo: 'Dr. Emily Watson',
-    status: 'approved' as const,
-    date: '2026-03-22',
-  },
-  {
-    id: '4',
-    name: 'Microscope Elite Pro',
-    assignedTo: 'Dr. James Park',
-    status: 'pending' as const,
-    date: '2026-03-21',
-  },
-];
+type StatusType = 'pending' | 'approved' | 'completed' | 'in-progress';
 
-const materialRequests = [
-  {
-    id: '1',
-    name: 'DNA Extraction Kit',
-    requestedBy: 'Dr. Sarah Chen',
-    quantity: 50,
-    status: 'approved' as const,
-    date: '2026-03-24',
-  },
-  {
-    id: '2',
-    name: 'Cell Culture Medium',
-    requestedBy: 'Dr. Michael Ross',
-    quantity: 100,
-    status: 'in-progress' as const,
-    date: '2026-03-23',
-  },
-  {
-    id: '3',
-    name: 'Pipette Tips (1000μL)',
-    requestedBy: 'Dr. Emily Watson',
-    quantity: 500,
-    status: 'completed' as const,
-    date: '2026-03-22',
-  },
-  {
-    id: '4',
-    name: 'Reagent Kit Alpha',
-    requestedBy: 'Dr. James Park',
-    quantity: 25,
-    status: 'pending' as const,
-    date: '2026-03-21',
-  },
-];
-
-// Equipment per Department data
-const equipmentByDepartment = [
-  { department: 'Molecular Biology', count: 85, color: '#06b6d4' },
-  { department: 'Biochemistry', count: 72, color: '#14b8a6' },
-  { department: 'Genetics', count: 58, color: '#0891b2' },
-  { department: 'Immunology', count: 65, color: '#0d9488' },
-  { department: 'Microbiology', count: 62, color: '#06b6d4' },
-];
-
-// Materials cost per Supplier data
-const materialsCostBySupplier = [
-  { supplier: 'BioTech Solutions', cost: 825000, percentage: 34, color: '#06b6d4' },
-  { supplier: 'LabSupply Co.', cost: 587500, percentage: 24, color: '#14b8a6' },
-  { supplier: 'ChemLab Direct', cost: 490000, percentage: 20, color: '#0891b2' },
-  { supplier: 'Scientific Supplies', cost: 367500, percentage: 15, color: '#0d9488' },
-  { supplier: 'Others', cost: 180000, percentage: 7, color: '#22d3ee' },
-];
-
-const recentActivities = [
-  { type: 'Equipment', action: 'Added', item: 'Flow Cytometer', user: 'Dr. Sarah Chen', time: '2 hours ago' },
-  { type: 'Material', action: 'Requested', item: 'PCR Master Mix', user: 'Dr. Michael Ross', time: '4 hours ago' },
-  { type: 'Scientist', action: 'Registered', item: 'Dr. Lisa Martinez', user: 'Admin', time: '6 hours ago' },
-  { type: 'Purchase', action: 'Completed', item: 'Antibody Panel Set', user: 'Dr. James Park', time: '1 day ago' },
-];
+function mapStatus(statusName: string | null | undefined): StatusType {
+  const value = String(statusName || '').toLowerCase();
+  if (value === 'completed') return 'completed';
+  if (value === 'in progress') return 'in-progress';
+  if (value === 'cancelled') return 'approved';
+  return 'pending';
+}
 
 export default function Dashboard() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [hoveredPie, setHoveredPie] = useState<number | null>(null);
+  const [stats, setStats] = useState([
+    { title: 'Total Scientists', value: 0, icon: Users, trend: { value: 0, isPositive: true } },
+    { title: 'Total Equipment', value: 0, icon: Microscope, trend: { value: 0, isPositive: true } },
+    { title: 'Materials Cost', value: 0, icon: FlaskConical, trend: { value: 0, isPositive: true } },
+    { title: 'Total Suppliers', value: 0, icon: Building2, trend: { value: 0, isPositive: true } },
+    { title: 'Total Purchases', value: 0, icon: ShoppingCart, trend: { value: 0, isPositive: true } },
+  ]);
+  const [equipmentByDepartment, setEquipmentByDepartment] = useState<Array<{ department: string; count: number; color: string }>>([]);
+  const [materialsCostBySupplier, setMaterialsCostBySupplier] = useState<Array<{ supplier: string; cost: number; percentage: number; color: string }>>([]);
+  const [recentActivities, setRecentActivities] = useState<Array<{ type: string; action: string; item: string; user: string; time: string }>>([]);
+  const [equipmentAssignments, setEquipmentAssignments] = useState<Array<{ id: string; name: string; assignedTo: string; status: StatusType; date: string }>>([]);
+  const [materialRequests, setMaterialRequests] = useState<Array<{ id: string; name: string; requestedBy: string; quantity: number; status: StatusType; date: string }>>([]);
 
-  const maxEquipmentCount = Math.max(...equipmentByDepartment.map(d => d.count));
+  useEffect(() => {
+    async function loadDashboard() {
+      const [statsResult, equipmentResult, supplierCostResult, activityResult, assignmentsResult, requestsResult] = await Promise.allSettled([
+        apiGet<{ total_scientists: number; total_equipment: number; total_suppliers: number; total_purchases: number; total_material_cost: number }>('/dashboard/stats'),
+        apiGet<Array<{ department_name: string; total: number }>>('/dashboard/equipment-by-department'),
+        apiGet<Array<{ supplier_name: string; total_cost: number }>>('/dashboard/material-cost-by-supplier'),
+        apiGet<Array<{ activity_type: string; description: string; performed_by: string; activity_time: string }>>('/activity?limit=8'),
+        apiGet<Array<{ assignment_id: number; equipment_name: string; scientist_name: string; status_name: string | null; assignment_date: string }>>('/dashboard/latest-assignments?limit=6'),
+        apiGet<Array<{ request_id: number; material_name: string; scientist_name: string; material_quantity: number; status_name: string | null; request_date: string }>>('/dashboard/latest-material-requests?limit=6'),
+      ]);
+
+      if (statsResult.status === 'fulfilled') {
+        const statsData = statsResult.value;
+        const totalCost = Number(statsData.total_material_cost || 0);
+        setStats([
+          { title: 'Total Scientists', value: Number(statsData.total_scientists || 0), icon: Users, trend: { value: 0, isPositive: true } },
+          { title: 'Total Equipment', value: Number(statsData.total_equipment || 0), icon: Microscope, trend: { value: 0, isPositive: true } },
+          { title: 'Materials Cost', value: totalCost, icon: FlaskConical, trend: { value: 0, isPositive: true } },
+          { title: 'Total Suppliers', value: Number(statsData.total_suppliers || 0), icon: Building2, trend: { value: 0, isPositive: true } },
+          { title: 'Total Purchases', value: Number(statsData.total_purchases || 0), icon: ShoppingCart, trend: { value: 0, isPositive: true } },
+        ]);
+      }
+
+      if (equipmentResult.status === 'fulfilled') {
+        const equipmentMapped = equipmentResult.value.map((row, index) => ({
+          department: row.department_name,
+          count: Number(row.total || 0),
+          color: chartColors[index % chartColors.length],
+        }));
+        setEquipmentByDepartment(equipmentMapped);
+      }
+
+      if (supplierCostResult.status === 'fulfilled') {
+        const supplierTotal = supplierCostResult.value.reduce((sum, row) => sum + Number(row.total_cost || 0), 0);
+        setMaterialsCostBySupplier(
+          supplierCostResult.value.map((row, index) => {
+            const cost = Number(row.total_cost || 0);
+            const percentage = supplierTotal > 0 ? Math.round((cost / supplierTotal) * 100) : 0;
+            return {
+              supplier: row.supplier_name,
+              cost,
+              percentage,
+              color: chartColors[index % chartColors.length],
+            };
+          })
+        );
+      }
+
+      if (activityResult.status === 'fulfilled') {
+        setRecentActivities(
+          activityResult.value.map((row) => ({
+            type: row.activity_type || 'Activity',
+            action: 'Updated',
+            item: row.description,
+            user: row.performed_by || 'System',
+            time: new Date(row.activity_time).toLocaleString(),
+          }))
+        );
+      }
+
+      if (assignmentsResult.status === 'fulfilled') {
+        setEquipmentAssignments(
+          assignmentsResult.value.map((row) => ({
+            id: String(row.assignment_id),
+            name: row.equipment_name,
+            assignedTo: row.scientist_name,
+            status: mapStatus(row.status_name),
+            date: new Date(row.assignment_date).toISOString().split('T')[0],
+          }))
+        );
+      }
+
+      if (requestsResult.status === 'fulfilled') {
+        setMaterialRequests(
+          requestsResult.value.map((row) => ({
+            id: String(row.request_id),
+            name: row.material_name,
+            requestedBy: row.scientist_name,
+            quantity: Number(row.material_quantity || 0),
+            status: mapStatus(row.status_name),
+            date: new Date(row.request_date).toISOString().split('T')[0],
+          }))
+        );
+      }
+    }
+
+    loadDashboard().catch((error) => {
+      console.error('Dashboard API load failed:', error);
+    });
+  }, []);
+
+  const maxEquipmentCount = Math.max(1, ...equipmentByDepartment.map(d => d.count));
+  const totalMaterialCost = stats.find((s) => s.title === 'Materials Cost')?.value || 0;
 
   return (
     <div className="p-8 space-y-8">
@@ -224,7 +242,7 @@ export default function Dashboard() {
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
                   <div className="text-2xl font-bold text-primary">KSh</div>
-                  <div className="text-lg font-medium text-muted-foreground">2.45M</div>
+                  <div className="text-lg font-medium text-muted-foreground">{(totalMaterialCost / 1000000).toFixed(2)}M</div>
                 </div>
               </div>
             </div>
@@ -312,10 +330,12 @@ export default function Dashboard() {
         <ActivityTable
           title="Latest Equipment Assignments"
           activities={equipmentAssignments}
+          type="equipment"
         />
         <ActivityTable
           title="Recent Material Requests"
           activities={materialRequests}
+          type="material"
         />
       </div>
     </div>

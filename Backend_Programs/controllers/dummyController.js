@@ -19,9 +19,9 @@ exports.addItem = async (req, res) => {
   dummyData.push(newItem);
 
   await logActivity({
-    actionType: 'ADD',
+    activityType: 'Dummy Add',
     description: `Added dummy item: ${name}`,
-    performedBy: req.user.username,
+    performedBy: req.user?.username || 'system',
   });
 
   res.status(201).json({ message: 'Item added', item: newItem });
@@ -37,9 +37,9 @@ exports.updateItem = async (req, res) => {
   item.name = name || item.name;
 
   await logActivity({
-    actionType: 'UPDATE',
+    activityType: 'Dummy Update',
     description: `Updated dummy item ID ${id} to name: ${item.name}`,
-    performedBy: req.user.username,
+    performedBy: req.user?.username || 'system',
   });
 
   res.json({ message: 'Item updated', item });
@@ -53,9 +53,9 @@ exports.deleteItem = async (req, res) => {
   const [deletedItem] = dummyData.splice(index, 1);
 
   await logActivity({
-    actionType: 'DELETE',
+    activityType: 'Dummy Delete',
     description: `Deleted dummy item: ${deletedItem.name}`,
-    performedBy: req.user.username,
+    performedBy: req.user?.username || 'system',
   });
 
   res.json({ message: 'Item deleted', item: deletedItem });

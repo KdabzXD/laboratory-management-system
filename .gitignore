@@ -1,5 +1,6 @@
 # Dependencies
 node_modules/
+allthesqlscripts/
 
 # Environment variables
 .env

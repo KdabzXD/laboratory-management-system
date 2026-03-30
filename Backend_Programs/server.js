@@ -1,11 +1,15 @@
-const express = require('express');
-const app = express();
-const dummyRoutes = require('./routes/dummyRoutes');
+require('dotenv').config();
+const app = require('./app');
 
-app.use(express.json());
+const DEFAULT_PORT = 3001;
+const configuredPort = Number(process.env.PORT || DEFAULT_PORT);
+const PORT = Number.isNaN(configuredPort) ? DEFAULT_PORT : configuredPort;
 
-// Mount dummy routes
-app.use('/dummy', dummyRoutes); // ✅ pass router directly, do NOT call it
+const server = app.listen(PORT, () => {
+	console.log(`Server running on port ${PORT} (pid: ${process.pid})`);
+});
 
-const PORT = process.env.PORT || 5000;
-app.listen(PORT, () => console.log(`Server running on port ${PORT}`));
+server.on('error', (err) => {
+	console.error('Server failed to start:', err.message);
+	process.exit(1);
+});
