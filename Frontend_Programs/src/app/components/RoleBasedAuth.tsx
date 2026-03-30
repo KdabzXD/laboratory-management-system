@@ -21,7 +21,11 @@ const ADMIN_PIN = '12345678';
 const EDITOR_PIN = '87654321';
 
 export function AuthProvider({ children }: { children: ReactNode }) {
-  const [role, setRoleState] = useState<Role>('viewer'); // Default to viewer
+  const [role, setRoleState] = useState<Role>(() => {
+    if (typeof window === 'undefined') return 'viewer';
+    const saved = localStorage.getItem('labflow_role') as Role | null;
+    return saved === 'admin' || saved === 'editor' || saved === 'viewer' ? saved : 'viewer';
+  }); // Default to viewer
 
   const authenticateAdmin = (pin: string): boolean => {
     return pin === ADMIN_PIN;
@@ -33,6 +37,12 @@ export function AuthProvider({ children }: { children: ReactNode }) {
 
   const setRole = (newRole: Role) => {
     setRoleState(newRole);
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('labflow_role', newRole);
+      if (newRole !== 'editor') {
+        localStorage.removeItem('labflow_editor_pin');
+      }
+    }
   };
 
   const requireEditorAuth = (callback: () => void) => {
@@ -278,6 +288,10 @@ export function EditorAuthModal({ isOpen, onClose, onSuccess, action, itemName }
       setError('Incorrect PIN. Please try again.');
       setPin('');
       return;
+    }
+
+    if (typeof window !== 'undefined') {
+      localStorage.setItem('labflow_editor_pin', pin);
     }
 
     setPin('');

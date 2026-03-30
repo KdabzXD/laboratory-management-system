@@ -1,9 +1,10 @@
-import { useState, useMemo, useRef } from 'react';
+import { useState, useMemo, useRef, useEffect } from 'react';
 import { FileText, Download, BarChart3, Filter, Calendar, Users, Package, Building2, TrendingUp } from 'lucide-react';
 import { motion } from 'motion/react';
 import jsPDF from 'jspdf';
 import autoTable from 'jspdf-autotable';
 import { BarChart, Bar, LineChart, Line, XAxis, YAxis, CartesianGrid, Tooltip as RechartsTooltip, Legend, ResponsiveContainer } from 'recharts';
+import { apiGet } from '../api/client';
 
 interface QueryResult {
   [key: string]: string | number;
@@ -82,7 +83,9 @@ const statuses = ['All', 'Pending', 'Completed', 'In Progress', 'Cancelled'];
 const COLORS = ['#06b6d4', '#14b8a6', '#8b5cf6', '#f59e0b', '#ef4444', '#10b981', '#3b82f6', '#ec4899'];
 
 export default function QueriesReports() {
+  const [queryList, setQueryList] = useState(predefinedQueries);
   const [selectedQuery, setSelectedQuery] = useState(predefinedQueries[0]);
+  const [queryData, setQueryData] = useState<QueryResult[]>([]);
   const [showChart, setShowChart] = useState(false);
   const [filters, setFilters] = useState<Filter>({
     dateFrom: '',
@@ -96,6 +99,41 @@ export default function QueriesReports() {
     quantityMax: 10000,
   });
   const [showFilters, setShowFilters] = useState(false);
+
+  useEffect(() => {
+    apiGet<Array<{ id: number; name: string }>>('/queries')
+      .then((rows) => {
+        if (rows.length === 0) {
+          return;
+        }
+
+        const merged = rows.map((row) => {
+          const existing = predefinedQueries.find((q) => q.id === row.id);
+          return {
+            id: row.id,
+            name: row.name,
+            category: existing?.category || 'General',
+          };
+        });
+
+        setQueryList(merged);
+        setSelectedQuery(merged[0]);
+      })
+      .catch((error) => {
+        console.error('Failed to load query catalog, using local definitions:', error);
+      });
+  }, []);
+
+  useEffect(() => {
+    apiGet<{ rows: QueryResult[] }>(`/queries/${selectedQuery.id}`)
+      .then((result) => {
+        setQueryData(result.rows || []);
+      })
+      .catch((error) => {
+        console.error(`Failed to execute query ${selectedQuery.id}, using fallback data:`, error);
+        setQueryData(generateQueryData(selectedQuery.id));
+      });
+  }, [selectedQuery.id]);
 
   // Generate mock data based on selected query
   const generateQueryData = (queryId: number): QueryResult[] => {
@@ -200,8 +238,6 @@ export default function QueriesReports() {
         ];
     }
   };
-
-  const queryData = useMemo(() => generateQueryData(selectedQuery.id), [selectedQuery.id]);
 
   // Apply filters to data
   const filteredData = useMemo(() => {
@@ -508,7 +544,7 @@ export default function QueriesReports() {
               Select Query
             </h3>
             <div className="space-y-2 max-h-[600px] overflow-y-auto custom-scrollbar">
-              {predefinedQueries.map((query) => (
+              {queryList.map((query) => (
                 <button
                   key={query.id}
                   onClick={() => {

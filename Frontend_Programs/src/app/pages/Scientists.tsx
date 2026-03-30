@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Users, Mail, Phone, Briefcase, Plus, User, Edit2, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
@@ -6,6 +6,7 @@ import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
 
 interface Scientist {
   employeeId: string;
@@ -18,23 +19,22 @@ interface Scientist {
   phone: string;
 }
 
-const departments = [
-  'Molecular Biology',
-  'Biochemistry',
-  'Genetics',
-  'Immunology',
-  'Microbiology',
-  'Neuroscience',
-];
+interface ScientistApi {
+  employee_id: string;
+  scientist_name: string;
+  scientist_age: number;
+  scientist_email: string;
+  phone_number: string;
+  department_name: string;
+  specialization_name: string;
+  gender_name: string;
+}
 
-const specializationsByDepartment: Record<string, string[]> = {
-  'Molecular Biology': ['DNA Sequencing', 'Gene Expression', 'Protein Synthesis'],
-  'Biochemistry': ['Enzymology', 'Metabolism', 'Clinical Chemistry'],
-  'Genetics': ['Population Genetics', 'Genomics', 'Genetic Engineering'],
-  'Immunology': ['Cellular Immunology', 'Immunotherapy', 'Vaccine Development'],
-  'Microbiology': ['Virology', 'Bacteriology', 'Mycology'],
-  'Neuroscience': ['Cognitive Neuroscience', 'Neurophysiology', 'Behavioral Neuroscience'],
-};
+interface ScientistMetadata {
+  departments: Array<{ department_id: number; department_name: string }>;
+  specializations: Array<{ specialization_id: number; specialization_name: string; department_id: number }>;
+  genders: Array<{ gender_id: number; gender_name: string }>;
+}
 
 const initialScientists: Scientist[] = [
   {
@@ -104,6 +104,11 @@ const ITEMS_PER_PAGE = 6;
 export default function Scientists() {
   const { isAdmin, isEditor, isViewer } = useAuth();
   const [scientists, setScientists] = useState<Scientist[]>(initialScientists);
+  const [metadata, setMetadata] = useState<ScientistMetadata>({
+    departments: [],
+    specializations: [],
+    genders: [],
+  });
   const [view, setView] = useState<'card' | 'table'>('card');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -118,36 +123,137 @@ export default function Scientists() {
     employeeId: '',
     name: '',
     age: 0,
-    department: departments[0],
-    specialization: specializationsByDepartment[departments[0]][0],
+    department: '',
+    specialization: '',
     gender: 'Male',
     email: '',
     phone: '',
   });
 
+  const loadScientists = async () => {
+    const rows = await apiGet<ScientistApi[]>('/scientists');
+    setScientists(
+      rows.map((row) => ({
+        employeeId: row.employee_id,
+        name: row.scientist_name,
+        age: Number(row.scientist_age || 0),
+        department: row.department_name,
+        specialization: row.specialization_name,
+        gender: row.gender_name,
+        email: row.scientist_email,
+        phone: row.phone_number,
+      }))
+    );
+  };
+
+  useEffect(() => {
+    Promise.all([
+      loadScientists(),
+      apiGet<ScientistMetadata>('/scientists/metadata').then((data) => {
+        setMetadata(data);
+
+        const firstDepartment = data.departments[0]?.department_name || '';
+        const firstDepartmentId = data.departments[0]?.department_id;
+        const firstSpecialization =
+          data.specializations.find((s) => s.department_id === firstDepartmentId)?.specialization_name || '';
+        const firstGender = data.genders[0]?.gender_name || 'Male';
+
+        setFormData((prev) => ({
+          ...prev,
+          department: prev.department || firstDepartment,
+          specialization: prev.specialization || firstSpecialization,
+          gender: prev.gender || firstGender,
+        }));
+      }),
+    ]).catch((error) => {
+      console.error('Failed to load scientists page data:', error);
+    });
+  }, []);
+
+  const resolveDepartmentId = (departmentName: string) => {
+    return metadata.departments.find((d) => d.department_name === departmentName)?.department_id;
+  };
+
+  const resolveSpecializationId = (specializationName: string, departmentId: number) => {
+    return metadata.specializations.find(
+      (s) => s.specialization_name === specializationName && s.department_id === departmentId
+    )?.specialization_id;
+  };
+
+  const resolveGenderId = (genderName: string) => {
+    const normalized = genderName.toLowerCase();
+    return metadata.genders.find((g) => g.gender_name.toLowerCase() === normalized)?.gender_id;
+  };
+
+  const departmentOptions = metadata.departments.map((d) => d.department_name);
+
+  const specializationOptions = (() => {
+    const selectedDeptId = resolveDepartmentId(formData.department);
+    if (!selectedDeptId) return [] as string[];
+    return metadata.specializations
+      .filter((s) => s.department_id === selectedDeptId)
+      .map((s) => s.specialization_name);
+  })();
+
+  const genderOptions = metadata.genders.map((g) => g.gender_name);
+
   const totalPages = Math.ceil(scientists.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentScientists = scientists.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode) {
-      setScientists(scientists.map((s) => (s.employeeId === formData.employeeId ? formData : s)));
-    } else {
-      setScientists([...scientists, formData]);
+    try {
+      const departmentId = resolveDepartmentId(formData.department);
+      const specializationId = departmentId ? resolveSpecializationId(formData.specialization, departmentId) : undefined;
+      const genderId = resolveGenderId(formData.gender);
+
+      if (!departmentId || !specializationId || !genderId) {
+        throw new Error('Select valid department, specialization, and gender values.');
+      }
+
+      const normalizedPhone = formData.phone.replace(/\D/g, '').slice(-10);
+      const rawEmployeeId = formData.employeeId.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const normalizedEmployeeId = rawEmployeeId.startsWith('EMP')
+        ? `SC${rawEmployeeId.slice(-3)}`
+        : rawEmployeeId;
+
+      if (!/^SC\d{3}$/.test(normalizedEmployeeId)) {
+        throw new Error('Employee ID format must be SC### (example: SC007).');
+      }
+
+      const payload = {
+        employee_id: normalizedEmployeeId,
+        scientist_name: formData.name.trim(),
+        scientist_age: Number(formData.age),
+        scientist_email: formData.email.trim(),
+        phone_number: normalizedPhone,
+        department_id: departmentId,
+        specialization_id: specializationId,
+        gender_id: genderId,
+      };
+
+      if (isEditMode) {
+        await apiPut<{ message: string }>(`/scientists/${formData.employeeId}`, payload);
+      } else {
+        await apiPost<{ message: string }>('/scientists', payload);
+      }
+      await loadScientists();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setFormData({
+        employeeId: '',
+        name: '',
+        age: 0,
+        department: departmentOptions[0] || '',
+        specialization: specializationOptions[0] || '',
+        gender: genderOptions[0] || 'Male',
+        email: '',
+        phone: '',
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save scientist.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setFormData({
-      employeeId: '',
-      name: '',
-      age: 0,
-      department: departments[0],
-      specialization: specializationsByDepartment[departments[0]][0],
-      gender: 'Male',
-      email: '',
-      phone: '',
-    });
   };
 
   const handleEditRequest = (scientist: Scientist) => {
@@ -190,11 +296,16 @@ export default function Scientists() {
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!pendingAction) return;
-    setScientists(scientists.filter((s) => s.employeeId !== pendingAction.item.employeeId));
-    setIsDeleteConfirmOpen(false);
-    setPendingAction(null);
+    try {
+      await apiDelete<{ message: string }>(`/scientists/${pendingAction.item.employeeId}`);
+      await loadScientists();
+      setIsDeleteConfirmOpen(false);
+      setPendingAction(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete scientist.');
+    }
   };
 
   const canModify = isAdmin() || isEditor();
@@ -421,9 +532,9 @@ export default function Scientists() {
             employeeId: '',
             name: '',
             age: 0,
-            department: departments[0],
-            specialization: specializationsByDepartment[departments[0]][0],
-            gender: 'Male',
+            department: departmentOptions[0] || '',
+            specialization: specializationOptions[0] || '',
+            gender: genderOptions[0] || 'Male',
             email: '',
             phone: '',
           });
@@ -447,7 +558,8 @@ export default function Scientists() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="e.g., EMP007"
+                placeholder="e.g., SC007"
+                title="Employee ID"
               />
             </div>
             <div className="group">
@@ -496,14 +608,17 @@ export default function Scientists() {
               <select
                 value={formData.gender}
                 onChange={(e) => setFormData({ ...formData, gender: e.target.value })}
+                title="Gender"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                <option value="Male">Male</option>
-                <option value="Female">Female</option>
-                <option value="Other">Other</option>
+                {genderOptions.map((gender) => (
+                  <option key={gender} value={gender}>
+                    {gender}
+                  </option>
+                ))}
               </select>
             </div>
           </div>
@@ -517,18 +632,21 @@ export default function Scientists() {
                 value={formData.department}
                 onChange={(e) => {
                   const newDept = e.target.value;
+                  const newDeptId = resolveDepartmentId(newDept);
+                  const nextSpec = metadata.specializations.find((s) => s.department_id === newDeptId)?.specialization_name || '';
                   setFormData({
                     ...formData,
                     department: newDept,
-                    specialization: specializationsByDepartment[newDept][0],
+                    specialization: nextSpec,
                   });
                 }}
+                title="Department"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                {departments.map((dept) => (
+                {departmentOptions.map((dept) => (
                   <option key={dept} value={dept}>
                     {dept}
                   </option>
@@ -542,12 +660,13 @@ export default function Scientists() {
               <select
                 value={formData.specialization}
                 onChange={(e) => setFormData({ ...formData, specialization: e.target.value })}
+                title="Specialization"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                {specializationsByDepartment[formData.department].map((spec) => (
+                {specializationOptions.map((spec) => (
                   <option key={spec} value={spec}>
                     {spec}
                   </option>
@@ -612,9 +731,9 @@ export default function Scientists() {
                   employeeId: '',
                   name: '',
                   age: 0,
-                  department: departments[0],
-                  specialization: specializationsByDepartment[departments[0]][0],
-                  gender: 'Male',
+                  department: departmentOptions[0] || '',
+                  specialization: specializationOptions[0] || '',
+                  gender: genderOptions[0] || 'Male',
                   email: '',
                   phone: '',
                 });

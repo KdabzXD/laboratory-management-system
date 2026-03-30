@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { FlaskConical, Package, Plus, Edit2, Trash2, FileText, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
@@ -6,6 +6,7 @@ import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
 
 interface Material {
   referenceNumber: string;
@@ -13,6 +14,8 @@ interface Material {
   description: string;
   supplier: string;
   cost: number;
+  stockQuantity?: number;
+  reorderLevel?: number;
 }
 
 interface MaterialRequest {
@@ -21,6 +24,38 @@ interface MaterialRequest {
   scientistName: string;
   requestDate: string;
   quantity: number;
+}
+
+interface MaterialApi {
+  reference_number: string;
+  material_name: string;
+  material_description: string;
+  supplier_id: number;
+  supplier_name: string;
+  material_cost: number;
+  stock_quantity?: number;
+  reorder_level?: number;
+}
+
+interface MaterialRequestApi {
+  request_id: number;
+  reference_number?: string;
+  employee_id?: string;
+  material_name: string;
+  scientist_name: string;
+  request_date: string;
+  material_quantity: number;
+  status_id?: number | null;
+}
+
+interface SupplierApi {
+  supplier_id: number;
+  supplier_name: string;
+}
+
+interface ScientistApi {
+  employee_id: string;
+  scientist_name: string;
 }
 
 const suppliers = [
@@ -124,6 +159,9 @@ export default function Materials() {
   const [activeTab, setActiveTab] = useState<'inventory' | 'requests'>('inventory');
   const [materials, setMaterials] = useState<Material[]>(initialMaterials);
   const [requests, setRequests] = useState<MaterialRequest[]>(initialRequests);
+  const [materialRows, setMaterialRows] = useState<MaterialApi[]>([]);
+  const [supplierRows, setSupplierRows] = useState<SupplierApi[]>([]);
+  const [scientistRows, setScientistRows] = useState<ScientistApi[]>([]);
   const [view, setView] = useState<'card' | 'table'>('card');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -154,6 +192,50 @@ export default function Materials() {
     quantity: 1,
   });
 
+  const loadMaterialsPage = async () => {
+    const [materialsData, requestRows, suppliersData, scientistsData] = await Promise.all([
+      apiGet<MaterialApi[]>('/materials'),
+      apiGet<MaterialRequestApi[]>('/materials/requests'),
+      apiGet<SupplierApi[]>('/suppliers'),
+      apiGet<ScientistApi[]>('/scientists'),
+    ]);
+
+    setMaterialRows(materialsData);
+    setSupplierRows(suppliersData);
+    setScientistRows(scientistsData);
+
+    setMaterials(
+      materialsData.map((row) => ({
+        referenceNumber: row.reference_number,
+        materialName: row.material_name,
+        description: row.material_description,
+        supplier: row.supplier_name,
+        cost: Number(row.material_cost || 0),
+        stockQuantity: row.stock_quantity,
+        reorderLevel: row.reorder_level,
+      }))
+    );
+
+    setRequests(
+      requestRows.map((row) => ({
+        requestId: row.request_id,
+        materialName: row.material_name,
+        scientistName: row.scientist_name,
+        requestDate: new Date(row.request_date).toISOString().split('T')[0],
+        quantity: Number(row.material_quantity || 0),
+      }))
+    );
+  };
+
+  useEffect(() => {
+    loadMaterialsPage().catch((error) => {
+      console.error('Failed to load materials data:', error);
+    });
+  }, []);
+
+  const supplierOptions = supplierRows.length > 0 ? supplierRows.map((s) => s.supplier_name) : suppliers;
+  const scientistOptions = scientistRows.length > 0 ? scientistRows.map((s) => s.scientist_name) : scientists;
+
   const totalPages =
     activeTab === 'inventory'
       ? Math.ceil(materials.length / ITEMS_PER_PAGE)
@@ -162,59 +244,90 @@ export default function Materials() {
   const currentMaterials = materials.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   const currentRequests = requests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode) {
-      setMaterials(materials.map((m) => (m.referenceNumber === formData.referenceNumber ? formData : m)));
-    } else {
-      setMaterials([...materials, formData]);
+    try {
+      const supplierId = supplierRows.find((s) => s.supplier_name === formData.supplier)?.supplier_id;
+      if (!supplierId) {
+        throw new Error('Select a valid supplier.');
+      }
+
+      const rawReference = formData.referenceNumber.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      const normalizedReference = rawReference.startsWith('MAT')
+        ? `MA${rawReference.slice(-3)}`
+        : rawReference;
+
+      if (!/^MA\d{3}$/.test(normalizedReference)) {
+        throw new Error('Reference Number format must be MA### (example: MA007).');
+      }
+
+      const existingMaterial = materialRows.find((m) => m.reference_number === normalizedReference);
+      const payload = {
+        reference_number: normalizedReference,
+        material_name: formData.materialName.trim(),
+        material_description: formData.description.trim(),
+        supplier_id: supplierId,
+        material_cost: Number(formData.cost),
+        stock_quantity: existingMaterial?.stock_quantity ?? formData.stockQuantity ?? 100,
+        reorder_level: existingMaterial?.reorder_level ?? formData.reorderLevel ?? 20,
+      };
+
+      if (isEditMode) {
+        await apiPut<{ message: string }>(`/materials/${formData.referenceNumber}`, payload);
+      } else {
+        await apiPost<{ message: string }>('/materials', payload);
+      }
+
+      await loadMaterialsPage();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setFormData({
+        referenceNumber: '',
+        materialName: '',
+        description: '',
+        supplier: supplierOptions[0] || '',
+        cost: 0,
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save material.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setFormData({
-      referenceNumber: '',
-      materialName: '',
-      description: '',
-      supplier: suppliers[0],
-      cost: 0,
-    });
   };
 
-  const handleRequestSubmit = (e: React.FormEvent) => {
+  const handleRequestSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode && pendingAction?.item) {
-      const request = pendingAction.item as MaterialRequest;
-      setRequests(
-        requests.map((r) =>
-          r.requestId === request.requestId
-            ? {
-                ...request,
-                materialName: requestFormData.materialName,
-                scientistName: requestFormData.scientistName,
-                requestDate: requestFormData.requestDate,
-                quantity: requestFormData.quantity,
-              }
-            : r
-        )
-      );
-    } else {
-      const newRequest: MaterialRequest = {
-        requestId: Math.max(...requests.map((r) => r.requestId), 0) + 1,
-        materialName: requestFormData.materialName,
-        scientistName: requestFormData.scientistName,
-        requestDate: requestFormData.requestDate,
-        quantity: requestFormData.quantity,
+    try {
+      const referenceNumber = materialRows.find((m) => m.material_name === requestFormData.materialName)?.reference_number;
+      const employeeId = scientistRows.find((s) => s.scientist_name === requestFormData.scientistName)?.employee_id;
+
+      if (!referenceNumber || !employeeId) {
+        throw new Error('Select valid material and scientist values.');
+      }
+
+      const payload = {
+        reference_number: referenceNumber,
+        employee_id: employeeId,
+        request_date: requestFormData.requestDate,
+        material_quantity: Number(requestFormData.quantity),
       };
-      setRequests([...requests, newRequest]);
+
+      if (isEditMode && pendingAction?.item) {
+        await apiPut<{ message: string }>(`/materials/requests/${(pendingAction.item as MaterialRequest).requestId}`, payload);
+      } else {
+        await apiPost<{ message: string }>('/materials/requests', payload);
+      }
+
+      await loadMaterialsPage();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setRequestFormData({
+        materialName: materials[0]?.materialName || '',
+        scientistName: scientistOptions[0] || '',
+        requestDate: new Date().toISOString().split('T')[0],
+        quantity: 1,
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save material request.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setRequestFormData({
-      materialName: initialMaterials[0]?.materialName || '',
-      scientistName: scientists[0],
-      requestDate: new Date().toISOString().split('T')[0],
-      quantity: 1,
-    });
   };
 
   const handleEditRequest = (item: Material | MaterialRequest, context: 'material' | 'request') => {
@@ -271,17 +384,21 @@ export default function Materials() {
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!pendingAction) return;
 
-    if (pendingAction.context === 'material') {
-      setMaterials(materials.filter((m) => m.referenceNumber !== (pendingAction.item as Material).referenceNumber));
-    } else {
-      setRequests(requests.filter((r) => r.requestId !== (pendingAction.item as MaterialRequest).requestId));
+    try {
+      if (pendingAction.context === 'material') {
+        await apiDelete<{ message: string }>(`/materials/${(pendingAction.item as Material).referenceNumber}`);
+      } else {
+        await apiDelete<{ message: string }>(`/materials/requests/${(pendingAction.item as MaterialRequest).requestId}`);
+      }
+      await loadMaterialsPage();
+      setIsDeleteConfirmOpen(false);
+      setPendingAction(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete item.');
     }
-
-    setIsDeleteConfirmOpen(false);
-    setPendingAction(null);
   };
 
   const canModify = isAdmin() || isEditor();
@@ -739,7 +856,7 @@ export default function Materials() {
               referenceNumber: '',
               materialName: '',
               description: '',
-              supplier: suppliers[0],
+              supplier: supplierOptions[0] || '',
               cost: 0,
             });
           }}
@@ -764,7 +881,7 @@ export default function Materials() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="e.g., MAT007"
+                placeholder="e.g., MA007"
               />
             </div>
 
@@ -843,12 +960,13 @@ export default function Materials() {
                 <select
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                  title="Supplier"
                   className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                            border-2 border-border rounded-lg text-card-foreground 
                            focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                            hover:border-primary/50 transition-all duration-300 cursor-pointer"
                 >
-                  {suppliers.map((supplier) => (
+                  {supplierOptions.map((supplier) => (
                     <option key={supplier} value={supplier}>
                       {supplier}
                     </option>
@@ -877,7 +995,7 @@ export default function Materials() {
                     referenceNumber: '',
                     materialName: '',
                     description: '',
-                    supplier: suppliers[0],
+                    supplier: supplierOptions[0] || '',
                     cost: 0,
                   });
                 }}
@@ -919,6 +1037,7 @@ export default function Materials() {
               <select
                 value={requestFormData.materialName}
                 onChange={(e) => setRequestFormData({ ...requestFormData, materialName: e.target.value })}
+                title="Material"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
@@ -942,12 +1061,13 @@ export default function Materials() {
               <select
                 value={requestFormData.scientistName}
                 onChange={(e) => setRequestFormData({ ...requestFormData, scientistName: e.target.value })}
+                title="Scientist"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                {scientists.map((sci) => (
+                {scientistOptions.map((sci) => (
                   <option key={sci} value={sci}>
                     {sci}
                   </option>
@@ -989,6 +1109,7 @@ export default function Materials() {
                   required
                   value={requestFormData.requestDate}
                   onChange={(e) => setRequestFormData({ ...requestFormData, requestDate: e.target.value })}
+                  title="Request Date"
                   className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                            border-2 border-border rounded-lg text-card-foreground 
                            focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
@@ -1023,8 +1144,8 @@ export default function Materials() {
                   setIsModalOpen(false);
                   setIsEditMode(false);
                   setRequestFormData({
-                    materialName: initialMaterials[0]?.materialName || '',
-                    scientistName: scientists[0],
+                    materialName: materials[0]?.materialName || '',
+                    scientistName: scientistOptions[0] || '',
                     requestDate: new Date().toISOString().split('T')[0],
                     quantity: 1,
                   });

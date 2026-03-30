@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Building2, Mail, Phone, MapPin, Plus, Edit2, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
@@ -6,6 +6,7 @@ import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
 
 interface Supplier {
   supplierId: number;
@@ -15,6 +16,16 @@ interface Supplier {
   description: string;
   email: string;
   contact: string;
+}
+
+interface SupplierApi {
+  supplier_id: number;
+  supplier_name: string;
+  supplier_address: string;
+  supplier_location: string;
+  supplier_description: string;
+  supplier_email: string;
+  supplier_contact: string;
 }
 
 const initialSuppliers: Supplier[] = [
@@ -99,29 +110,68 @@ export default function Suppliers() {
     contact: '',
   });
 
+  const loadSuppliers = async () => {
+    const rows = await apiGet<SupplierApi[]>('/suppliers');
+    setSuppliers(
+      rows.map((row) => ({
+        supplierId: row.supplier_id,
+        name: row.supplier_name,
+        address: row.supplier_address,
+        location: row.supplier_location,
+        description: row.supplier_description,
+        email: row.supplier_email,
+        contact: row.supplier_contact,
+      }))
+    );
+  };
+
+  useEffect(() => {
+    loadSuppliers().catch((error) => {
+      console.error('Failed to load suppliers:', error);
+    });
+  }, []);
+
   const totalPages = Math.ceil(suppliers.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentSuppliers = suppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode) {
-      setSuppliers(suppliers.map((s) => (s.supplierId === formData.supplierId ? formData : s)));
-    } else {
-      const newId = Math.max(...suppliers.map((s) => s.supplierId), 0) + 1;
-      setSuppliers([...suppliers, { ...formData, supplierId: newId }]);
+    try {
+      if (isEditMode) {
+        await apiPut<{ message: string }>(`/suppliers/${formData.supplierId}`, {
+          supplier_name: formData.name,
+          supplier_address: formData.address,
+          supplier_location: formData.location,
+          supplier_description: formData.description,
+          supplier_email: formData.email,
+          supplier_contact: formData.contact,
+        });
+      } else {
+        await apiPost<{ message: string }>('/suppliers', {
+          supplier_name: formData.name,
+          supplier_address: formData.address,
+          supplier_location: formData.location,
+          supplier_description: formData.description,
+          supplier_email: formData.email,
+          supplier_contact: formData.contact,
+        });
+      }
+      await loadSuppliers();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setFormData({
+        supplierId: 0,
+        name: '',
+        address: '',
+        location: '',
+        description: '',
+        email: '',
+        contact: '',
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save supplier.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setFormData({
-      supplierId: 0,
-      name: '',
-      address: '',
-      location: '',
-      description: '',
-      email: '',
-      contact: '',
-    });
   };
 
   const handleEditRequest = (supplier: Supplier) => {
@@ -158,11 +208,16 @@ export default function Suppliers() {
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!pendingAction) return;
-    setSuppliers(suppliers.filter((s) => s.supplierId !== pendingAction.item.supplierId));
-    setIsDeleteConfirmOpen(false);
-    setPendingAction(null);
+    try {
+      await apiDelete<{ message: string }>(`/suppliers/${pendingAction.item.supplierId}`);
+      await loadSuppliers();
+      setIsDeleteConfirmOpen(false);
+      setPendingAction(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete supplier.');
+    }
   };
 
   const canModify = isAdmin() || isEditor();

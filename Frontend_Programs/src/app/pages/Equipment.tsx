@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { Microscope, Plus, Edit2, Trash2, ClipboardList, Calendar } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
@@ -6,6 +6,7 @@ import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
 
 interface Equipment {
   serialNumber: string;
@@ -22,6 +23,38 @@ interface Assignment {
   equipmentName: string;
   scientistName: string;
   assignmentDate: string;
+}
+
+interface EquipmentApi {
+  serial_number: string;
+  equipment_name: string;
+  equipment_cost: number;
+  department_name: string;
+  supplier_name: string;
+}
+
+interface AssignmentApi {
+  assignment_id: number;
+  serial_number: string;
+  employee_id: string;
+  equipment_name: string;
+  scientist_name: string;
+  assignment_date: string;
+  status_id?: number | null;
+}
+
+interface SupplierApi {
+  supplier_id: number;
+  supplier_name: string;
+}
+
+interface ScientistApi {
+  employee_id: string;
+  scientist_name: string;
+}
+
+interface ScientistMetadata {
+  departments: Array<{ department_id: number; department_name: string }>;
 }
 
 const departments = [
@@ -162,6 +195,9 @@ export default function Equipment() {
   const [activeTab, setActiveTab] = useState<'inventory' | 'assignments'>('inventory');
   const [equipment, setEquipment] = useState<Equipment[]>(initialEquipment);
   const [assignments, setAssignments] = useState<Assignment[]>(initialAssignments);
+  const [supplierRows, setSupplierRows] = useState<SupplierApi[]>([]);
+  const [scientistRows, setScientistRows] = useState<ScientistApi[]>([]);
+  const [departmentRows, setDepartmentRows] = useState<Array<{ department_id: number; department_name: string }>>([]);
   const [view, setView] = useState<'card' | 'table'>('card');
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
@@ -190,6 +226,54 @@ export default function Equipment() {
     assignmentDate: new Date().toISOString().split('T')[0],
   });
 
+  const loadEquipmentPage = async () => {
+    const [equipmentRows, assignmentRows, suppliersData, scientistsData, metadata] = await Promise.all([
+      apiGet<EquipmentApi[]>('/equipment'),
+      apiGet<AssignmentApi[]>('/equipment/assignments'),
+      apiGet<SupplierApi[]>('/suppliers'),
+      apiGet<ScientistApi[]>('/scientists'),
+      apiGet<ScientistMetadata>('/scientists/metadata'),
+    ]);
+
+    setSupplierRows(suppliersData);
+    setScientistRows(scientistsData);
+    setDepartmentRows(metadata.departments);
+
+    setEquipment(
+      equipmentRows.map((row) => ({
+        serialNumber: row.serial_number,
+        name: row.equipment_name,
+        cost: Number(row.equipment_cost || 0),
+        department: row.department_name,
+        supplier: row.supplier_name,
+      }))
+    );
+
+    setAssignments(
+      assignmentRows.map((row) => ({
+        assignmentId: row.assignment_id,
+        serialNumber: row.serial_number,
+        employeeId: row.employee_id,
+        equipmentName: row.equipment_name,
+        scientistName: row.scientist_name,
+        assignmentDate: new Date(row.assignment_date).toISOString().split('T')[0],
+      }))
+    );
+  };
+
+  useEffect(() => {
+    loadEquipmentPage().catch((error) => {
+      console.error('Failed to load equipment data:', error);
+    });
+  }, []);
+
+  const departmentOptions = departmentRows.length > 0 ? departmentRows.map((d) => d.department_name) : departments;
+  const supplierOptions = supplierRows.length > 0 ? supplierRows.map((s) => s.supplier_name) : suppliers;
+  const scientistOptions =
+    scientistRows.length > 0
+      ? scientistRows.map((s) => ({ employeeId: s.employee_id, name: s.scientist_name }))
+      : scientists;
+
   const totalPages =
     activeTab === 'inventory'
       ? Math.ceil(equipment.length / ITEMS_PER_PAGE)
@@ -198,63 +282,76 @@ export default function Equipment() {
   const currentEquipment = equipment.slice(startIndex, startIndex + ITEMS_PER_PAGE);
   const currentAssignments = assignments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode) {
-      setEquipment(equipment.map((eq) => (eq.serialNumber === formData.serialNumber ? formData : eq)));
-    } else {
-      setEquipment([...equipment, formData]);
+    try {
+      const supplierId = supplierRows.find((s) => s.supplier_name === formData.supplier)?.supplier_id;
+      const departmentId = departmentRows.find((d) => d.department_name === formData.department)?.department_id;
+
+      if (!supplierId || !departmentId) {
+        throw new Error('Select valid department and supplier.');
+      }
+
+      const normalizedSerial = formData.serialNumber.trim().toUpperCase().replace(/[^A-Z0-9]/g, '');
+      if (!/^EQ\d{3}$/.test(normalizedSerial)) {
+        throw new Error('Serial Number format must be EQ### (example: EQ009).');
+      }
+
+      const payload = {
+        serial_number: normalizedSerial,
+        equipment_name: formData.name.trim(),
+        equipment_cost: Number(formData.cost),
+        department_id: departmentId,
+        supplier_id: supplierId,
+      };
+
+      if (isEditMode) {
+        await apiPut<{ message: string }>(`/equipment/${formData.serialNumber}`, payload);
+      } else {
+        await apiPost<{ message: string }>('/equipment', payload);
+      }
+
+      await loadEquipmentPage();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setFormData({
+        serialNumber: '',
+        name: '',
+        cost: 0,
+        department: departmentOptions[0] || '',
+        supplier: supplierOptions[0] || '',
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save equipment.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setFormData({
-      serialNumber: '',
-      name: '',
-      cost: 0,
-      department: departments[0],
-      supplier: suppliers[0],
-    });
   };
 
-  const handleAssignmentSubmit = (e: React.FormEvent) => {
+  const handleAssignmentSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    const selectedEquipment = equipment.find((eq) => eq.serialNumber === assignmentFormData.serialNumber);
-    const selectedScientist = scientists.find((sci) => sci.employeeId === assignmentFormData.employeeId);
-
-    if (isEditMode && pendingAction?.item) {
-      const assignment = pendingAction.item as Assignment;
-      setAssignments(
-        assignments.map((a) =>
-          a.assignmentId === assignment.assignmentId
-            ? {
-                ...assignment,
-                serialNumber: assignmentFormData.serialNumber,
-                employeeId: assignmentFormData.employeeId,
-                equipmentName: selectedEquipment?.name || '',
-                scientistName: selectedScientist?.name || '',
-                assignmentDate: assignmentFormData.assignmentDate,
-              }
-            : a
-        )
-      );
-    } else {
-      const newAssignment: Assignment = {
-        assignmentId: Math.max(...assignments.map((a) => a.assignmentId), 0) + 1,
-        serialNumber: assignmentFormData.serialNumber,
-        employeeId: assignmentFormData.employeeId,
-        equipmentName: selectedEquipment?.name || '',
-        scientistName: selectedScientist?.name || '',
-        assignmentDate: assignmentFormData.assignmentDate,
+    try {
+      const payload = {
+        serial_number: assignmentFormData.serialNumber,
+        employee_id: assignmentFormData.employeeId,
+        assignment_date: assignmentFormData.assignmentDate,
       };
-      setAssignments([...assignments, newAssignment]);
+
+      if (isEditMode && pendingAction?.item) {
+        await apiPut<{ message: string }>(`/equipment/assignments/${(pendingAction.item as Assignment).assignmentId}`, payload);
+      } else {
+        await apiPost<{ message: string }>('/equipment/assignments', payload);
+      }
+
+      await loadEquipmentPage();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setAssignmentFormData({
+        serialNumber: equipment[0]?.serialNumber || '',
+        employeeId: scientistOptions[0]?.employeeId || '',
+        assignmentDate: new Date().toISOString().split('T')[0],
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save assignment.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setAssignmentFormData({
-      serialNumber: initialEquipment[0]?.serialNumber || '',
-      employeeId: scientists[0]?.employeeId || '',
-      assignmentDate: new Date().toISOString().split('T')[0],
-    });
   };
 
   const handleEditRequest = (item: Equipment | Assignment, context: 'equipment' | 'assignment') => {
@@ -315,17 +412,21 @@ export default function Equipment() {
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!pendingAction) return;
 
-    if (pendingAction.context === 'equipment') {
-      setEquipment(equipment.filter((eq) => eq.serialNumber !== (pendingAction.item as Equipment).serialNumber));
-    } else {
-      setAssignments(assignments.filter((a) => a.assignmentId !== (pendingAction.item as Assignment).assignmentId));
+    try {
+      if (pendingAction.context === 'equipment') {
+        await apiDelete<{ message: string }>(`/equipment/${(pendingAction.item as Equipment).serialNumber}`);
+      } else {
+        await apiDelete<{ message: string }>(`/equipment/assignments/${(pendingAction.item as Assignment).assignmentId}`);
+      }
+      await loadEquipmentPage();
+      setIsDeleteConfirmOpen(false);
+      setPendingAction(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete item.');
     }
-
-    setIsDeleteConfirmOpen(false);
-    setPendingAction(null);
   };
 
   const canModify = isAdmin() || isEditor();
@@ -776,8 +877,8 @@ export default function Equipment() {
               serialNumber: '',
               name: '',
               cost: 0,
-              department: departments[0],
-              supplier: suppliers[0],
+              department: departmentOptions[0] || '',
+              supplier: supplierOptions[0] || '',
             });
           }}
           title={isEditMode ? 'Edit Equipment' : 'Add Equipment'}
@@ -801,7 +902,7 @@ export default function Equipment() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50 disabled:opacity-50 disabled:cursor-not-allowed"
-                placeholder="e.g., EQ-009"
+                placeholder="e.g., EQ009"
               />
             </div>
 
@@ -860,12 +961,13 @@ export default function Equipment() {
                 <select
                   value={formData.department}
                   onChange={(e) => setFormData({ ...formData, department: e.target.value })}
+                  title="Department"
                   className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                            border-2 border-border rounded-lg text-card-foreground 
                            focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                            hover:border-primary/50 transition-all duration-300 cursor-pointer"
                 >
-                  {departments.map((dept) => (
+                  {departmentOptions.map((dept) => (
                     <option key={dept} value={dept}>
                       {dept}
                     </option>
@@ -882,12 +984,13 @@ export default function Equipment() {
                 <select
                   value={formData.supplier}
                   onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+                  title="Supplier"
                   className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                            border-2 border-border rounded-lg text-card-foreground 
                            focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                            hover:border-primary/50 transition-all duration-300 cursor-pointer"
                 >
-                  {suppliers.map((supplier) => (
+                  {supplierOptions.map((supplier) => (
                     <option key={supplier} value={supplier}>
                       {supplier}
                     </option>
@@ -916,8 +1019,8 @@ export default function Equipment() {
                     serialNumber: '',
                     name: '',
                     cost: 0,
-                    department: departments[0],
-                    supplier: suppliers[0],
+                    department: departmentOptions[0] || '',
+                    supplier: supplierOptions[0] || '',
                   });
                 }}
                 className="flex-1 px-6 py-3 rounded-lg bg-secondary text-card-foreground
@@ -957,6 +1060,7 @@ export default function Equipment() {
               <select
                 value={assignmentFormData.serialNumber}
                 onChange={(e) => setAssignmentFormData({ ...assignmentFormData, serialNumber: e.target.value })}
+                title="Equipment"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
@@ -980,12 +1084,13 @@ export default function Equipment() {
               <select
                 value={assignmentFormData.employeeId}
                 onChange={(e) => setAssignmentFormData({ ...assignmentFormData, employeeId: e.target.value })}
+                title="Scientist"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                {scientists.map((sci) => (
+                {scientistOptions.map((sci) => (
                   <option key={sci.employeeId} value={sci.employeeId}>
                     {sci.employeeId} - {sci.name}
                   </option>
@@ -1006,6 +1111,7 @@ export default function Equipment() {
                   required
                   value={assignmentFormData.assignmentDate}
                   onChange={(e) => setAssignmentFormData({ ...assignmentFormData, assignmentDate: e.target.value })}
+                  title="Assignment Date"
                   className="flex-1 px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                            border-2 border-border rounded-lg text-card-foreground 
                            focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
@@ -1039,8 +1145,8 @@ export default function Equipment() {
                   setIsModalOpen(false);
                   setIsEditMode(false);
                   setAssignmentFormData({
-                    serialNumber: initialEquipment[0]?.serialNumber || '',
-                    employeeId: scientists[0]?.employeeId || '',
+                    serialNumber: equipment[0]?.serialNumber || '',
+                    employeeId: scientistOptions[0]?.employeeId || '',
                     assignmentDate: new Date().toISOString().split('T')[0],
                   });
                 }}

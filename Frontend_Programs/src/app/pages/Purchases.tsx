@@ -1,10 +1,11 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import { ShoppingCart, Calendar, Package, Plus, AlertCircle, Edit2, Trash2 } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../api/client';
 
 interface Purchase {
   purchaseId: string;
@@ -14,6 +15,29 @@ interface Purchase {
   purchaseDate: string;
   totalCost: number;
   status: 'pending' | 'completed';
+}
+
+interface PurchaseApi {
+  purchase_id: number;
+  reference_number: string;
+  material_name: string;
+  material_quantity: number;
+  supplier_id: number;
+  supplier_name: string;
+  purchase_date: string;
+  status_id: number | null;
+  status_name: string | null;
+  total_cost: number;
+}
+
+interface MaterialApi {
+  reference_number: string;
+  material_name: string;
+}
+
+interface SupplierApi {
+  supplier_id: number;
+  supplier_name: string;
 }
 
 const materials = [
@@ -98,6 +122,11 @@ const ITEMS_PER_PAGE = 6;
 export default function Purchases() {
   const { isAdmin, isEditor, isViewer } = useAuth();
   const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
+  const [materialOptions, setMaterialOptions] = useState<string[]>(materials);
+  const [supplierOptions, setSupplierOptions] = useState<string[]>(suppliers);
+  const [materialsApi, setMaterialsApi] = useState<MaterialApi[]>([]);
+  const [suppliersApi, setSuppliersApi] = useState<SupplierApi[]>([]);
+  const [statusIds, setStatusIds] = useState<{ pending?: number; completed?: number }>({});
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -115,6 +144,53 @@ export default function Purchases() {
     totalCost: 0,
   });
 
+  const mapStatusName = (statusName: string | null): 'pending' | 'completed' => {
+    return (statusName || '').toLowerCase().includes('complete') ? 'completed' : 'pending';
+  };
+
+  const loadPurchasesPage = async () => {
+    const [purchaseRows, materialRows, supplierRows] = await Promise.all([
+      apiGet<PurchaseApi[]>('/purchases'),
+      apiGet<MaterialApi[]>('/materials'),
+      apiGet<SupplierApi[]>('/suppliers'),
+    ]);
+
+    setMaterialsApi(materialRows);
+    setSuppliersApi(supplierRows);
+    setMaterialOptions(materialRows.map((m) => m.material_name));
+    setSupplierOptions(supplierRows.map((s) => s.supplier_name));
+
+    const nextStatusIds: { pending?: number; completed?: number } = {};
+    for (const row of purchaseRows) {
+      const statusName = (row.status_name || '').toLowerCase();
+      if (statusName.includes('pending') && row.status_id) {
+        nextStatusIds.pending = row.status_id;
+      }
+      if (statusName.includes('complete') && row.status_id) {
+        nextStatusIds.completed = row.status_id;
+      }
+    }
+    setStatusIds(nextStatusIds);
+
+    setPurchases(
+      purchaseRows.map((row) => ({
+        purchaseId: String(row.purchase_id),
+        materialName: row.material_name,
+        quantity: Number(row.material_quantity || 0),
+        supplier: row.supplier_name,
+        purchaseDate: new Date(row.purchase_date).toISOString().split('T')[0],
+        totalCost: Number(row.total_cost || 0),
+        status: mapStatusName(row.status_name),
+      }))
+    );
+  };
+
+  useEffect(() => {
+    loadPurchasesPage().catch((error) => {
+      console.error('Failed to load purchases page data:', error);
+    });
+  }, []);
+
   const totalPages = Math.ceil(purchases.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
   const currentPurchases = purchases.slice(startIndex, startIndex + ITEMS_PER_PAGE);
@@ -122,33 +198,46 @@ export default function Purchases() {
   const pendingPurchases = purchases.filter((p) => p.status === 'pending');
   const completedPurchases = purchases.filter((p) => p.status === 'completed');
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (isEditMode && pendingAction?.item) {
-      setPurchases(
-        purchases.map((p) =>
-          p.purchaseId === pendingAction.item.purchaseId
-            ? { ...pendingAction.item, ...formData }
-            : p
-        )
-      );
-    } else {
-      const newPurchase: Purchase = {
-        ...formData,
-        purchaseId: `PO-2026-${String(purchases.length + 1).padStart(3, '0')}`,
-        status: 'pending',
-      };
-      setPurchases([...purchases, newPurchase]);
+    try {
+      const selectedMaterial = materialsApi.find((m) => m.material_name === formData.materialName);
+      const selectedSupplier = suppliersApi.find((s) => s.supplier_name === formData.supplier);
+
+      if (!selectedMaterial || !selectedSupplier) {
+        throw new Error('Material or supplier mapping failed for purchase payload.');
+      }
+
+      if (isEditMode && pendingAction?.item) {
+        await apiPut<{ message: string }>(`/purchases/${pendingAction.item.purchaseId}`, {
+          reference_number: selectedMaterial.reference_number,
+          material_quantity: Number(formData.quantity),
+          supplier_id: selectedSupplier.supplier_id,
+          purchase_date: formData.purchaseDate,
+          status_id: pendingAction.item.status === 'completed' ? statusIds.completed : statusIds.pending,
+        });
+      } else {
+        await apiPost<{ message: string }>('/purchases', {
+          reference_number: selectedMaterial.reference_number,
+          material_quantity: Number(formData.quantity),
+          supplier_id: selectedSupplier.supplier_id,
+          purchase_date: formData.purchaseDate,
+          status_id: statusIds.pending,
+        });
+      }
+      await loadPurchasesPage();
+      setIsModalOpen(false);
+      setIsEditMode(false);
+      setFormData({
+        materialName: materialOptions[0] || '',
+        quantity: 1,
+        supplier: supplierOptions[0] || '',
+        purchaseDate: new Date().toISOString().split('T')[0],
+        totalCost: 0,
+      });
+    } catch (error: any) {
+      alert(error?.message || 'Failed to save purchase.');
     }
-    setIsModalOpen(false);
-    setIsEditMode(false);
-    setFormData({
-      materialName: materials[0],
-      quantity: 1,
-      supplier: suppliers[0],
-      purchaseDate: new Date().toISOString().split('T')[0],
-      totalCost: 0,
-    });
   };
 
   const handleEditRequest = (purchase: Purchase) => {
@@ -197,21 +286,34 @@ export default function Purchases() {
     }
   };
 
-  const handleDeleteConfirm = () => {
+  const handleDeleteConfirm = async () => {
     if (!pendingAction) return;
-    setPurchases(purchases.filter((p) => p.purchaseId !== pendingAction.item.purchaseId));
-    setIsDeleteConfirmOpen(false);
-    setPendingAction(null);
+    try {
+      await apiDelete<{ message: string }>(`/purchases/${pendingAction.item.purchaseId}`);
+      await loadPurchasesPage();
+      setIsDeleteConfirmOpen(false);
+      setPendingAction(null);
+    } catch (error: any) {
+      alert(error?.message || 'Failed to delete purchase.');
+    }
   };
 
-  const handleStatusToggle = (purchaseId: string) => {
-    setPurchases(
-      purchases.map((p) =>
-        p.purchaseId === purchaseId
-          ? { ...p, status: p.status === 'pending' ? 'completed' : 'pending' }
-          : p
-      )
-    );
+  const handleStatusToggle = async (purchaseId: string) => {
+    const current = purchases.find((p) => p.purchaseId === purchaseId);
+    if (!current) return;
+
+    const nextStatus = current.status === 'pending' ? 'completed' : 'pending';
+    const statusId = nextStatus === 'completed' ? statusIds.completed : statusIds.pending;
+    if (!statusId) return;
+
+    try {
+      await apiPatch<{ message: string }>(`/purchases/${purchaseId}/status`, {
+        status_id: statusId,
+      });
+      await loadPurchasesPage();
+    } catch (error: any) {
+      alert(error?.message || 'Failed to update purchase status.');
+    }
   };
 
   const canModify = isAdmin() || isEditor();
@@ -436,9 +538,9 @@ export default function Purchases() {
           setIsModalOpen(false);
           setIsEditMode(false);
           setFormData({
-            materialName: materials[0],
+            materialName: materialOptions[0] || '',
             quantity: 1,
-            supplier: suppliers[0],
+            supplier: supplierOptions[0] || '',
             purchaseDate: new Date().toISOString().split('T')[0],
             totalCost: 0,
           });
@@ -454,12 +556,13 @@ export default function Purchases() {
               <select
                 value={formData.materialName}
                 onChange={(e) => setFormData({ ...formData, materialName: e.target.value })}
+                title="Material"
                 className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 cursor-pointer"
               >
-                {materials.map((mat) => (
+                {materialOptions.map((mat) => (
                   <option key={mat} value={mat}>
                     {mat}
                   </option>
@@ -493,12 +596,13 @@ export default function Purchases() {
             <select
               value={formData.supplier}
               onChange={(e) => setFormData({ ...formData, supplier: e.target.value })}
+              title="Supplier"
               className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                        border-2 border-border rounded-lg text-card-foreground 
                        focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                        hover:border-primary/50 transition-all duration-300 cursor-pointer"
             >
-              {suppliers.map((sup) => (
+              {supplierOptions.map((sup) => (
                 <option key={sup} value={sup}>
                   {sup}
                 </option>
@@ -536,6 +640,7 @@ export default function Purchases() {
                 required
                 value={formData.purchaseDate}
                 onChange={(e) => setFormData({ ...formData, purchaseDate: e.target.value })}
+                title="Purchase Date"
                 className="flex-1 px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                          border-2 border-border rounded-lg text-card-foreground 
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
@@ -569,9 +674,9 @@ export default function Purchases() {
                 setIsModalOpen(false);
                 setIsEditMode(false);
                 setFormData({
-                  materialName: materials[0],
+                  materialName: materialOptions[0] || '',
                   quantity: 1,
-                  supplier: suppliers[0],
+                  supplier: supplierOptions[0] || '',
                   purchaseDate: new Date().toISOString().split('T')[0],
                   totalCost: 0,
                 });
