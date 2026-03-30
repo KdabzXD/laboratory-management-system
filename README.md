@@ -1,6 +1,6 @@
-# Laboratory Management System · 
+# Laboratory Management System
 
-[Dashboard Screenshot](screenshots/dashboard-overview.png)
+![Dashboard Screenshot](screenshots/dashboard-overview.png)
 
 A full-stack laboratory operations platform for managing scientists, equipment, materials, suppliers, purchases, activity logs, and report queries.
 
