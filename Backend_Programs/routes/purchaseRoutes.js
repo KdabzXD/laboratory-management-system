@@ -5,6 +5,7 @@ const { accessMode } = require('../middleware/accessMiddleware');
 const { checkPIN } = require('../middleware/pinMiddleware');
 
 router.get('/', accessMode('Viewer'), purchaseController.getAll);
+router.get('/status-types', accessMode('Viewer'), purchaseController.getStatusTypes);
 
 router.post('/', accessMode('Editor'), checkPIN, purchaseController.create);
 router.put('/:purchaseId', accessMode('Editor'), checkPIN, purchaseController.update);

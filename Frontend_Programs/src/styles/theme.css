@@ -179,6 +179,22 @@
     line-height: 1.5;
   }
 
+  select {
+    color-scheme: dark;
+  }
+
+  select,
+  option,
+  optgroup {
+    background-color: #0f172a;
+    color: #e4f4f4;
+  }
+
+  option:checked {
+    background-color: #0b5f7a;
+    color: #e4f4f4;
+  }
+
   /* Custom scrollbar styling */
   .custom-scrollbar::-webkit-scrollbar {
     width: 8px;

@@ -337,6 +337,19 @@ export default function QueriesReports() {
 
   // Generate chart data based on query
   const getChartData = () => {
+    const normalize = (value: string) => value.toLowerCase().replace(/[^a-z0-9]/g, '');
+    const row0 = filteredData[0] as QueryResult | undefined;
+    if (!row0) return [];
+
+    const keys = Object.keys(row0);
+    const findKey = (candidates: string[]) => {
+      return keys.find((key) => candidates.includes(normalize(key)));
+    };
+
+    const departmentKey = findKey(['department', 'departmentname']);
+    const statusKey = findKey(['status', 'statusname']);
+    const monthKey = findKey(['month']);
+
     if (selectedQuery.id === 36) {
       // Budget data
       return filteredData.map((row, index) => ({
@@ -356,11 +369,11 @@ export default function QueriesReports() {
         Supplies: row.Supplies,
         Total: row.Total,
       }));
-    } else if (filteredData.length > 0 && filteredData[0].Department) {
+    } else if (departmentKey) {
       // Group by department
       const grouped: { [key: string]: number } = {};
       filteredData.forEach(row => {
-        const dept = row.Department as string;
+        const dept = String((row as any)[departmentKey] || 'Unknown');
         grouped[dept] = (grouped[dept] || 0) + 1;
       });
       return Object.keys(grouped).map((dept, index) => ({ 
@@ -368,11 +381,11 @@ export default function QueriesReports() {
         name: dept, 
         count: grouped[dept] 
       }));
-    } else if (filteredData.length > 0 && filteredData[0].Status) {
+    } else if (statusKey) {
       // Group by status
       const grouped: { [key: string]: number } = {};
       filteredData.forEach(row => {
-        const status = row.Status as string;
+        const status = String((row as any)[statusKey] || 'Unknown');
         grouped[status] = (grouped[status] || 0) + 1;
       });
       return Object.keys(grouped).map((status, index) => ({ 
@@ -380,8 +393,19 @@ export default function QueriesReports() {
         name: status, 
         value: grouped[status] 
       }));
+    } else {
+      // Generic fallback: chart the first numeric column by the first textual identifier.
+      const numericKey = keys.find((key) => typeof (row0 as any)[key] === 'number');
+      const labelKey = monthKey || keys.find((key) => typeof (row0 as any)[key] === 'string') || keys[0];
+
+      if (!numericKey || !labelKey) return [];
+
+      return filteredData.slice(0, 12).map((row, index) => ({
+        id: `generic-${index}`,
+        name: String((row as any)[labelKey] || `Item ${index + 1}`),
+        value: Number((row as any)[numericKey] || 0),
+      }));
     }
-    return [];
   };
 
   const chartData = getChartData();
@@ -784,6 +808,16 @@ export default function QueriesReports() {
                 Data Visualization
               </h4>
               {renderChart()}
+            </motion.div>
+          )}
+
+          {showChart && chartData.length === 0 && (
+            <motion.div
+              initial={{ opacity: 0, y: 12 }}
+              animate={{ opacity: 1, y: 0 }}
+              className="bg-gradient-to-br from-card to-card/50 border border-border rounded-xl p-6 text-sm text-muted-foreground"
+            >
+              No chartable columns were detected for the current query and filter set.
             </motion.div>
           )}
         </div>

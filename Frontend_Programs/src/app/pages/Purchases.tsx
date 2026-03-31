@@ -33,11 +33,17 @@ interface PurchaseApi {
 interface MaterialApi {
   reference_number: string;
   material_name: string;
+  material_cost?: number;
 }
 
 interface SupplierApi {
   supplier_id: number;
   supplier_name: string;
+}
+
+interface StatusTypeApi {
+  status_id: number;
+  status_name: string;
 }
 
 const materials = [
@@ -149,10 +155,11 @@ export default function Purchases() {
   };
 
   const loadPurchasesPage = async () => {
-    const [purchaseRows, materialRows, supplierRows] = await Promise.all([
+    const [purchaseRows, materialRows, supplierRows, statusRows] = await Promise.all([
       apiGet<PurchaseApi[]>('/purchases'),
       apiGet<MaterialApi[]>('/materials'),
       apiGet<SupplierApi[]>('/suppliers'),
+      apiGet<StatusTypeApi[]>('/purchases/status-types'),
     ]);
 
     setMaterialsApi(materialRows);
@@ -160,14 +167,21 @@ export default function Purchases() {
     setMaterialOptions(materialRows.map((m) => m.material_name));
     setSupplierOptions(supplierRows.map((s) => s.supplier_name));
 
-    const nextStatusIds: { pending?: number; completed?: number } = {};
-    for (const row of purchaseRows) {
-      const statusName = (row.status_name || '').toLowerCase();
-      if (statusName.includes('pending') && row.status_id) {
-        nextStatusIds.pending = row.status_id;
-      }
-      if (statusName.includes('complete') && row.status_id) {
-        nextStatusIds.completed = row.status_id;
+    const nextStatusIds: { pending?: number; completed?: number } = {
+      pending: statusRows.find((s) => s.status_name.toLowerCase().includes('pending'))?.status_id,
+      completed: statusRows.find((s) => s.status_name.toLowerCase().includes('complete'))?.status_id,
+    };
+
+    // Safety fallback for environments with partial status data.
+    if (!nextStatusIds.pending || !nextStatusIds.completed) {
+      for (const row of purchaseRows) {
+        const statusName = (row.status_name || '').toLowerCase();
+        if (statusName.includes('pending') && row.status_id) {
+          nextStatusIds.pending = row.status_id;
+        }
+        if (statusName.includes('complete') && row.status_id) {
+          nextStatusIds.completed = row.status_id;
+        }
       }
     }
     setStatusIds(nextStatusIds);
@@ -190,6 +204,17 @@ export default function Purchases() {
       console.error('Failed to load purchases page data:', error);
     });
   }, []);
+
+  useEffect(() => {
+    const unitCost = Number(materialsApi.find((m) => m.material_name === formData.materialName)?.material_cost || 0);
+    const quantity = Number(formData.quantity || 0);
+    const nextTotal = unitCost * quantity;
+
+    setFormData((prev) => {
+      if (prev.totalCost === nextTotal) return prev;
+      return { ...prev, totalCost: nextTotal };
+    });
+  }, [formData.materialName, formData.quantity, materialsApi]);
 
   const totalPages = Math.ceil(purchases.length / ITEMS_PER_PAGE);
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
@@ -298,11 +323,14 @@ export default function Purchases() {
     }
   };
 
-  const handleStatusToggle = async (purchaseId: string) => {
+  const handleStatusChange = async (purchaseId: string, nextStatus: 'pending' | 'completed') => {
     const current = purchases.find((p) => p.purchaseId === purchaseId);
     if (!current) return;
 
-    const nextStatus = current.status === 'pending' ? 'completed' : 'pending';
+    if (current.status === nextStatus) {
+      return;
+    }
+
     const statusId = nextStatus === 'completed' ? statusIds.completed : statusIds.pending;
     if (!statusId) return;
 
@@ -485,17 +513,20 @@ export default function Purchases() {
                     </td>
                     <td className="py-4 px-6 relative">
                       <div className="flex items-center justify-center">
-                        <button
-                          onClick={() => handleStatusToggle(purchase.purchaseId)}
+                        <select
+                          value={purchase.status}
+                          onChange={(e) => handleStatusChange(purchase.purchaseId, e.target.value as 'pending' | 'completed')}
                           disabled={isViewer()}
-                          className={`px-3 py-1 rounded-full text-xs font-medium transition-all duration-300 ${
+                          title="Purchase Status"
+                          className={`px-2 py-1 rounded-md text-xs font-medium transition-all duration-300 border ${
                             purchase.status === 'pending'
                               ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30'
-                              : 'bg-green-500/20 text-green-400 border border-green-500/30 hover:bg-green-500/30'
+                              : 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30'
                           } ${isViewer() ? 'cursor-not-allowed opacity-50' : 'hover:scale-105'}`}
                         >
-                          {purchase.status === 'pending' ? 'Pending' : 'Completed'}
-                        </button>
+                          <option value="pending">Pending</option>
+                          <option value="completed">Completed</option>
+                        </select>
                       </div>
                     </td>
                     {canModify && (
@@ -616,15 +647,12 @@ export default function Purchases() {
             </label>
             <input
               type="number"
-              required
-              step="0.01"
-              min="0"
+              readOnly
               value={formData.totalCost || ''}
-              onChange={(e) => setFormData({ ...formData, totalCost: parseFloat(e.target.value) })}
               className="w-full px-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 
                        border-2 border-border rounded-lg text-card-foreground 
                        focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
-                       hover:border-primary/50 transition-all duration-300 
+                       hover:border-primary/50 transition-all duration-300 cursor-not-allowed opacity-80
                        placeholder:text-muted-foreground/50"
               placeholder="0.00"
             />

@@ -2,6 +2,36 @@ const sql = require('mssql/msnodesqlv8');
 const { poolPromise } = require('../config/db');
 const logActivity = require('../utils/logger');
 
+async function getStatusIdByName(pool, statusName) {
+	const normalized = String(statusName || '').toLowerCase();
+	if (!normalized) return null;
+
+	const result = await pool
+		.request()
+		.input('status_name', sql.VarChar(20), normalized)
+		.query(`
+			SELECT TOP 1 status_id
+			FROM status_types
+			WHERE LOWER(status_name) = @status_name
+		`);
+
+	return result.recordset[0]?.status_id || null;
+}
+
+exports.getStatusTypes = async (_req, res) => {
+	try {
+		const pool = await poolPromise;
+		const result = await pool.request().query(`
+			SELECT status_id, status_name
+			FROM status_types
+			ORDER BY status_id
+		`);
+		return res.json(result.recordset);
+	} catch (err) {
+		return res.status(500).json({ message: 'Failed to fetch purchase status types', error: err.message });
+	}
+};
+
 exports.getAll = async (_req, res) => {
 	try {
 		const pool = await poolPromise;
@@ -34,13 +64,19 @@ exports.create = async (req, res) => {
 	try {
 		const { reference_number, material_quantity, supplier_id, purchase_date, status_id } = req.body;
 		const pool = await poolPromise;
+		let finalStatusId = status_id || null;
+
+		if (!finalStatusId) {
+			finalStatusId = await getStatusIdByName(pool, 'Pending');
+		}
+
 		await pool
 			.request()
 			.input('reference_number', sql.VarChar(5), reference_number)
 			.input('material_quantity', sql.Int, material_quantity)
 			.input('supplier_id', sql.Int, supplier_id)
 			.input('purchase_date', sql.Date, purchase_date || null)
-			.input('status_id', sql.Int, status_id || null)
+			.input('status_id', sql.Int, finalStatusId)
 			.query(`
 				INSERT INTO purchase_details
 				(reference_number, material_quantity, supplier_id, purchase_date, status_id)
@@ -127,13 +163,23 @@ exports.remove = async (req, res) => {
 exports.updateStatus = async (req, res) => {
 	try {
 		const { purchaseId } = req.params;
-		const { status_id } = req.body;
+		const { status_id, status_name } = req.body;
 
 		const pool = await poolPromise;
+		let finalStatusId = status_id || null;
+
+		if (!finalStatusId && status_name) {
+			finalStatusId = await getStatusIdByName(pool, status_name);
+		}
+
+		if (!finalStatusId) {
+			return res.status(400).json({ message: 'A valid status_id or status_name is required.' });
+		}
+
 		const result = await pool
 			.request()
 			.input('purchase_id', sql.Int, Number(purchaseId))
-			.input('status_id', sql.Int, status_id)
+			.input('status_id', sql.Int, finalStatusId)
 			.query(`
 				UPDATE purchase_details
 				SET status_id = @status_id
@@ -146,7 +192,7 @@ exports.updateStatus = async (req, res) => {
 
 		await logActivity({
 			activityType: 'Purchase Status Updated',
-			description: `Purchase ${purchaseId} status changed to ${status_id}`,
+			description: `Purchase ${purchaseId} status changed to ${finalStatusId}`,
 			performedBy: req.user?.username || 'system',
 		});
 
