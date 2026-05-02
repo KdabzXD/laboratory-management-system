@@ -6,11 +6,13 @@ import {
   FlaskConical, 
   Building2, 
   ShoppingCart,
-  FileBarChart
+  FileBarChart,
+  Layers3
 } from 'lucide-react';
 
 const navItems = [
   { path: '/', label: 'Dashboard', icon: LayoutDashboard },
+  { path: '/departments', label: 'Departments', icon: Layers3 },
   { path: '/scientists', label: 'Scientists', icon: Users },
   { path: '/equipment', label: 'Equipment', icon: Microscope },
   { path: '/materials', label: 'Materials', icon: FlaskConical },

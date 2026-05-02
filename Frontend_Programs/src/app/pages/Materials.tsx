@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { FlaskConical, Package, Plus, Edit2, Trash2, FileText, Calendar } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { FlaskConical, Package, Plus, Edit2, Trash2, FileText, Calendar, Search, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
 import { Pagination } from '../components/Pagination';
@@ -13,6 +13,7 @@ interface Material {
   materialName: string;
   description: string;
   supplier: string;
+  supplierEmail?: string;
   cost: number;
   stockQuantity?: number;
   reorderLevel?: number;
@@ -20,6 +21,8 @@ interface Material {
 
 interface MaterialRequest {
   requestId: number;
+  referenceNumber?: string;
+  employeeId?: string;
   materialName: string;
   scientistName: string;
   requestDate: string;
@@ -32,6 +35,7 @@ interface MaterialApi {
   material_description: string;
   supplier_id: number;
   supplier_name: string;
+  supplier_email?: string;
   material_cost: number;
   stock_quantity?: number;
   reorder_level?: number;
@@ -163,6 +167,8 @@ export default function Materials() {
   const [supplierRows, setSupplierRows] = useState<SupplierApi[]>([]);
   const [scientistRows, setScientistRows] = useState<ScientistApi[]>([]);
   const [view, setView] = useState<'card' | 'table'>('card');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -210,6 +216,7 @@ export default function Materials() {
         materialName: row.material_name,
         description: row.material_description,
         supplier: row.supplier_name,
+        supplierEmail: row.supplier_email,
         cost: Number(row.material_cost || 0),
         stockQuantity: row.stock_quantity,
         reorderLevel: row.reorder_level,
@@ -219,6 +226,8 @@ export default function Materials() {
     setRequests(
       requestRows.map((row) => ({
         requestId: row.request_id,
+        referenceNumber: row.reference_number,
+        employeeId: row.employee_id,
         materialName: row.material_name,
         scientistName: row.scientist_name,
         requestDate: new Date(row.request_date).toISOString().split('T')[0],
@@ -236,13 +245,56 @@ export default function Materials() {
   const supplierOptions = supplierRows.length > 0 ? supplierRows.map((s) => s.supplier_name) : suppliers;
   const scientistOptions = scientistRows.length > 0 ? scientistRows.map((s) => s.scientist_name) : scientists;
 
+  const visibleMaterials = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return materials
+      .filter((material) =>
+        [
+          material.referenceNumber,
+          material.materialName,
+          material.description,
+          material.supplier,
+          material.supplierEmail,
+          material.cost,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) =>
+        sortAsc ? a.materialName.localeCompare(b.materialName) : b.materialName.localeCompare(a.materialName)
+      );
+  }, [materials, searchQuery, sortAsc]);
+
+  const visibleRequests = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return requests
+      .filter((request) =>
+        [
+          request.requestId,
+          request.referenceNumber,
+          request.materialName,
+          request.employeeId,
+          request.scientistName,
+          request.requestDate,
+          request.quantity,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) =>
+        sortAsc ? a.materialName.localeCompare(b.materialName) : b.materialName.localeCompare(a.materialName)
+      );
+  }, [requests, searchQuery, sortAsc]);
+
   const totalPages =
     activeTab === 'inventory'
-      ? Math.ceil(materials.length / ITEMS_PER_PAGE)
-      : Math.ceil(requests.length / ITEMS_PER_PAGE);
+      ? Math.max(1, Math.ceil(visibleMaterials.length / ITEMS_PER_PAGE))
+      : Math.max(1, Math.ceil(visibleRequests.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentMaterials = materials.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  const currentRequests = requests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentMaterials = visibleMaterials.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentRequests = visibleRequests.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -401,7 +453,7 @@ export default function Materials() {
     }
   };
 
-  const canModify = isAdmin() || isEditor();
+  const canModify = activeTab === 'inventory' ? isAdmin() : isAdmin() || isEditor();
 
   const setNow = () => {
     setRequestFormData({
@@ -423,6 +475,7 @@ export default function Materials() {
           onClick={() => {
             setActiveTab('inventory');
             setCurrentPage(1);
+            setSearchQuery('');
           }}
           className={`px-6 py-3 text-sm font-medium transition-all duration-300 border-b-2 ${
             activeTab === 'inventory'
@@ -439,6 +492,7 @@ export default function Materials() {
           onClick={() => {
             setActiveTab('requests');
             setCurrentPage(1);
+            setSearchQuery('');
           }}
           className={`px-6 py-3 text-sm font-medium transition-all duration-300 border-b-2 ${
             activeTab === 'requests'
@@ -456,6 +510,27 @@ export default function Materials() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <ViewToggle currentView={view} onViewChange={setView} />
+          <div className="relative group min-w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-300" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder={activeTab === 'inventory' ? 'Search materials...' : 'Search requests...'}
+              className="w-full pl-11 pr-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 border-2 border-border rounded-lg text-card-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 hover:border-primary/50 transition-all duration-300 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <button
+            onClick={() => setSortAsc((value) => !value)}
+            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-secondary border-2 border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-all duration-300"
+            title="Toggle sort order"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="text-sm">{sortAsc ? 'A-Z' : 'Z-A'}</span>
+          </button>
         </div>
         {canModify && (
           <button
@@ -509,6 +584,10 @@ export default function Materials() {
                         <span className="text-card-foreground">{material.supplier}</span>
                       </div>
                       <div className="flex justify-between pt-2 border-t border-border">
+                        <span className="text-muted-foreground">Supplier Email:</span>
+                        <span className="text-card-foreground truncate">{material.supplierEmail || 'N/A'}</span>
+                      </div>
+                      <div className="flex justify-between pt-2 border-t border-border">
                         <span className="text-muted-foreground">Cost:</span>
                         <span className="text-accent font-medium">KSh {material.cost.toLocaleString()}</span>
                       </div>
@@ -557,15 +636,16 @@ export default function Materials() {
                     >
                       <tr>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
-                          Reference #
+                          Reference Number
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Material Name
                         </th>
-                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier</th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
-                          Description
+                          Material Description
                         </th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Name</th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Email</th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Cost</th>
                         {canModify && (
                           <th className="text-center py-4 px-6 text-sm uppercase tracking-wider text-primary">
@@ -602,17 +682,17 @@ export default function Materials() {
                             </span>
                           </td>
                           <td className="py-4 px-6 relative">
-                            <span
-                              className="relative text-sm text-muted-foreground group-hover:text-primary 
-                                           transition-colors duration-300"
-                            >
+                            <span className="relative text-sm text-muted-foreground line-clamp-2">
+                              {material.description}
+                            </span>
+                          </td>
+                          <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground group-hover:text-primary transition-colors duration-300">
                               {material.supplier}
                             </span>
                           </td>
                           <td className="py-4 px-6 relative">
-                            <span className="relative text-sm text-muted-foreground line-clamp-2">
-                              {material.description}
-                            </span>
+                            <span className="relative text-sm text-muted-foreground">{material.supplierEmail || 'N/A'}</span>
                           </td>
                           <td className="py-4 px-6 relative">
                             <span
@@ -745,10 +825,16 @@ export default function Materials() {
                           Request ID
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
+                          Reference Number
+                        </th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Material Name
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
-                          Scientist
+                          Employee ID
+                        </th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
+                          Scientist Name
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Quantity
@@ -783,12 +869,18 @@ export default function Materials() {
                             </span>
                           </td>
                           <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground">{request.referenceNumber}</span>
+                          </td>
+                          <td className="py-4 px-6 relative">
                             <span
                               className="relative text-sm text-card-foreground 
                                            group-hover:translate-x-1 inline-block transition-transform duration-300"
                             >
                               {request.materialName}
                             </span>
+                          </td>
+                          <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground">{request.employeeId}</span>
                           </td>
                           <td className="py-4 px-6 relative">
                             <span
@@ -902,7 +994,7 @@ export default function Materials() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50"
-                placeholder="Enter material name"
+                placeholder="e.g., Hydrochloric Acid"
               />
             </div>
 
@@ -923,7 +1015,7 @@ export default function Materials() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50 resize-none"
-                placeholder="Describe the material..."
+                placeholder="e.g., Acid"
               />
             </div>
 

@@ -42,40 +42,40 @@
 }
 
 .dark {
-  --background: #0a0e1a;
-  --foreground: #e4f4f4;
-  --card: #111827;
-  --card-foreground: #e4f4f4;
-  --popover: #111827;
-  --popover-foreground: #e4f4f4;
-  --primary: #06b6d4;
-  --primary-foreground: #0a0e1a;
-  --secondary: #1e293b;
-  --secondary-foreground: #e4f4f4;
-  --muted: #1e293b;
-  --muted-foreground: #94a3b8;
-  --accent: #14b8a6;
-  --accent-foreground: #0a0e1a;
+  --background: #12091f;
+  --foreground: #f4eaff;
+  --card: #1b102d;
+  --card-foreground: #f4eaff;
+  --popover: #1b102d;
+  --popover-foreground: #f4eaff;
+  --primary: #c084fc;
+  --primary-foreground: #12091f;
+  --secondary: #2a1843;
+  --secondary-foreground: #f4eaff;
+  --muted: #2a1843;
+  --muted-foreground: #bba7d8;
+  --accent: #f0abfc;
+  --accent-foreground: #12091f;
   --destructive: #ef4444;
   --destructive-foreground: #f8fafc;
-  --border: #1e293b;
-  --input: #1e293b;
-  --ring: #06b6d4;
+  --border: #3a2458;
+  --input: #2a1843;
+  --ring: #c084fc;
   --font-weight-medium: 500;
   --font-weight-normal: 400;
-  --chart-1: #06b6d4;
-  --chart-2: #14b8a6;
-  --chart-3: #0891b2;
-  --chart-4: #2dd4bf;
-  --chart-5: #22d3ee;
-  --sidebar: #0f172a;
-  --sidebar-foreground: #e4f4f4;
-  --sidebar-primary: #06b6d4;
-  --sidebar-primary-foreground: #0a0e1a;
-  --sidebar-accent: #1e293b;
-  --sidebar-accent-foreground: #e4f4f4;
-  --sidebar-border: #1e293b;
-  --sidebar-ring: #06b6d4;
+  --chart-1: #c084fc;
+  --chart-2: #f0abfc;
+  --chart-3: #a855f7;
+  --chart-4: #d8b4fe;
+  --chart-5: #e879f9;
+  --sidebar: #160b26;
+  --sidebar-foreground: #f4eaff;
+  --sidebar-primary: #c084fc;
+  --sidebar-primary-foreground: #12091f;
+  --sidebar-accent: #2a1843;
+  --sidebar-accent-foreground: #f4eaff;
+  --sidebar-border: #3a2458;
+  --sidebar-ring: #c084fc;
 }
 
 @theme inline {
@@ -186,13 +186,13 @@
   select,
   option,
   optgroup {
-    background-color: #0f172a;
-    color: #e4f4f4;
+    background-color: #160b26;
+    color: #f4eaff;
   }
 
   option:checked {
-    background-color: #0b5f7a;
-    color: #e4f4f4;
+    background-color: #7e22ce;
+    color: #f4eaff;
   }
 
   /* Custom scrollbar styling */

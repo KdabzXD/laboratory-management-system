@@ -6,8 +6,8 @@ const { checkPIN } = require('../middleware/pinMiddleware');
 
 router.get('/', accessMode('Viewer'), supplierController.getAll);
 
-router.post('/', accessMode('Editor'), checkPIN, supplierController.create);
-router.put('/:supplierId', accessMode('Editor'), checkPIN, supplierController.update);
-router.delete('/:supplierId', accessMode('Editor'), checkPIN, supplierController.remove);
+router.post('/', accessMode('Admin'), supplierController.create);
+router.put('/:supplierId', accessMode('Admin'), supplierController.update);
+router.delete('/:supplierId', accessMode('Admin'), supplierController.remove);
 
 module.exports = router;

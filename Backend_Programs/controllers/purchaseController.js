@@ -43,6 +43,7 @@ exports.getAll = async (_req, res) => {
 				p.material_quantity,
 				p.supplier_id,
 				s.supplier_name,
+				s.supplier_email,
 				p.purchase_date,
 				p.status_id,
 				st.status_name,

@@ -14,6 +14,7 @@ exports.getAll = async (_req, res) => {
 				d.department_name,
 				e.supplier_id,
 				s.supplier_name,
+				s.supplier_email,
 				e.created_at
 			FROM lab_equipment e
 			JOIN departments d ON d.department_id = e.department_id

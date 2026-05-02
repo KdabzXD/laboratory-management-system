@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Microscope, Plus, Edit2, Trash2, ClipboardList, Calendar } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Microscope, Plus, Edit2, Trash2, ClipboardList, Calendar, Search, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
 import { Pagination } from '../components/Pagination';
@@ -14,6 +14,7 @@ interface Equipment {
   cost: number;
   department: string;
   supplier: string;
+  supplierEmail?: string;
 }
 
 interface Assignment {
@@ -31,6 +32,7 @@ interface EquipmentApi {
   equipment_cost: number;
   department_name: string;
   supplier_name: string;
+  supplier_email?: string;
 }
 
 interface AssignmentApi {
@@ -199,6 +201,8 @@ export default function Equipment() {
   const [scientistRows, setScientistRows] = useState<ScientistApi[]>([]);
   const [departmentRows, setDepartmentRows] = useState<Array<{ department_id: number; department_name: string }>>([]);
   const [view, setView] = useState<'card' | 'table'>('card');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -246,6 +250,7 @@ export default function Equipment() {
         cost: Number(row.equipment_cost || 0),
         department: row.department_name,
         supplier: row.supplier_name,
+        supplierEmail: row.supplier_email,
       }))
     );
 
@@ -274,13 +279,48 @@ export default function Equipment() {
       ? scientistRows.map((s) => ({ employeeId: s.employee_id, name: s.scientist_name }))
       : scientists;
 
+  const visibleEquipment = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return equipment
+      .filter((item) =>
+        [item.serialNumber, item.name, item.cost, item.department, item.supplier, item.supplierEmail]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) => (sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+  }, [equipment, searchQuery, sortAsc]);
+
+  const visibleAssignments = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return assignments
+      .filter((assignment) =>
+        [
+          assignment.assignmentId,
+          assignment.serialNumber,
+          assignment.equipmentName,
+          assignment.employeeId,
+          assignment.scientistName,
+          assignment.assignmentDate,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) =>
+        sortAsc
+          ? a.equipmentName.localeCompare(b.equipmentName)
+          : b.equipmentName.localeCompare(a.equipmentName)
+      );
+  }, [assignments, searchQuery, sortAsc]);
+
   const totalPages =
     activeTab === 'inventory'
-      ? Math.ceil(equipment.length / ITEMS_PER_PAGE)
-      : Math.ceil(assignments.length / ITEMS_PER_PAGE);
+      ? Math.max(1, Math.ceil(visibleEquipment.length / ITEMS_PER_PAGE))
+      : Math.max(1, Math.ceil(visibleAssignments.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentEquipment = equipment.slice(startIndex, startIndex + ITEMS_PER_PAGE);
-  const currentAssignments = assignments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentEquipment = visibleEquipment.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentAssignments = visibleAssignments.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -429,7 +469,7 @@ export default function Equipment() {
     }
   };
 
-  const canModify = isAdmin() || isEditor();
+  const canModify = activeTab === 'inventory' ? isAdmin() : isAdmin() || isEditor();
 
   const setNow = () => {
     setAssignmentFormData({
@@ -451,6 +491,7 @@ export default function Equipment() {
           onClick={() => {
             setActiveTab('inventory');
             setCurrentPage(1);
+            setSearchQuery('');
           }}
           className={`px-6 py-3 text-sm font-medium transition-all duration-300 border-b-2 ${
             activeTab === 'inventory'
@@ -467,6 +508,7 @@ export default function Equipment() {
           onClick={() => {
             setActiveTab('assignments');
             setCurrentPage(1);
+            setSearchQuery('');
           }}
           className={`px-6 py-3 text-sm font-medium transition-all duration-300 border-b-2 ${
             activeTab === 'assignments'
@@ -484,6 +526,27 @@ export default function Equipment() {
       <div className="flex items-center justify-between mb-6">
         <div className="flex items-center gap-4">
           <ViewToggle currentView={view} onViewChange={setView} />
+          <div className="relative group min-w-80">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-300" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder={activeTab === 'inventory' ? 'Search equipment...' : 'Search assignments...'}
+              className="w-full pl-11 pr-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 border-2 border-border rounded-lg text-card-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 hover:border-primary/50 transition-all duration-300 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <button
+            onClick={() => setSortAsc((value) => !value)}
+            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-secondary border-2 border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-all duration-300"
+            title="Toggle sort order"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="text-sm">{sortAsc ? 'A-Z' : 'Z-A'}</span>
+          </button>
         </div>
         {canModify && (
           <button
@@ -542,6 +605,10 @@ export default function Equipment() {
                         <span className="text-muted-foreground">Supplier:</span>
                         <span className="text-card-foreground">{item.supplier}</span>
                       </div>
+                      <div className="flex justify-between">
+                        <span className="text-muted-foreground">Supplier Email:</span>
+                        <span className="text-card-foreground truncate">{item.supplierEmail || 'N/A'}</span>
+                      </div>
                     </div>
 
                     {canModify && (
@@ -589,12 +656,13 @@ export default function Equipment() {
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Serial Number
                         </th>
-                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Name</th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Equipment Name</th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Cost</th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
-                          Department
+                          Department Name
                         </th>
-                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier</th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Name</th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Email</th>
                         {canModify && (
                           <th className="text-center py-4 px-6 text-sm uppercase tracking-wider text-primary">
                             Actions
@@ -652,6 +720,9 @@ export default function Equipment() {
                             >
                               {item.supplier}
                             </span>
+                          </td>
+                          <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground">{item.supplierEmail || 'N/A'}</span>
                           </td>
                           {canModify && (
                             <td className="py-4 px-6 relative">
@@ -772,7 +843,13 @@ export default function Equipment() {
                           Assignment ID
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
+                          Serial Number
+                        </th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Equipment Name
+                        </th>
+                        <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
+                          Employee ID
                         </th>
                         <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">
                           Scientist Name
@@ -807,12 +884,18 @@ export default function Equipment() {
                             </span>
                           </td>
                           <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground">{assignment.serialNumber}</span>
+                          </td>
+                          <td className="py-4 px-6 relative">
                             <span
                               className="relative text-sm text-card-foreground 
                                            group-hover:translate-x-1 inline-block transition-transform duration-300"
                             >
                               {assignment.equipmentName}
                             </span>
+                          </td>
+                          <td className="py-4 px-6 relative">
+                            <span className="relative text-sm text-muted-foreground">{assignment.employeeId}</span>
                           </td>
                           <td className="py-4 px-6 relative">
                             <span
@@ -979,7 +1062,7 @@ export default function Equipment() {
                   className="block text-sm text-muted-foreground mb-2 group-focus-within:text-primary 
                                 transition-colors duration-300"
                 >
-                  Supplier
+                          Supplier Name
                 </label>
                 <select
                   value={formData.supplier}

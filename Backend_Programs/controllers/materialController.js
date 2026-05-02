@@ -12,6 +12,7 @@ exports.getAll = async (_req, res) => {
 				m.material_description,
 				m.supplier_id,
 				s.supplier_name,
+				s.supplier_email,
 				m.material_cost,
 				m.stock_quantity,
 				m.reorder_level,

@@ -1,6 +1,7 @@
 import { createBrowserRouter } from 'react-router';
 import { Layout } from './components/Layout';
 import Dashboard from './pages/Dashboard';
+import Departments from './pages/Departments';
 import Scientists from './pages/Scientists';
 import Equipment from './pages/Equipment';
 import Materials from './pages/Materials';
@@ -14,6 +15,7 @@ export const router = createBrowserRouter([
     Component: Layout,
     children: [
       { index: true, Component: Dashboard },
+      { path: 'departments', Component: Departments },
       { path: 'scientists', Component: Scientists },
       { path: 'equipment', Component: Equipment },
       { path: 'materials', Component: Materials },

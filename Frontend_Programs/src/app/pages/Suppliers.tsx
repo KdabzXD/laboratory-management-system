@@ -1,5 +1,5 @@
-import { useEffect, useState } from 'react';
-import { Building2, Mail, Phone, MapPin, Plus, Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { Building2, Mail, Phone, MapPin, Plus, Edit2, Trash2, Search, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { ViewToggle } from '../components/ViewToggle';
 import { Pagination } from '../components/Pagination';
@@ -88,9 +88,11 @@ const initialSuppliers: Supplier[] = [
 const ITEMS_PER_PAGE = 6;
 
 export default function Suppliers() {
-  const { isAdmin, isEditor, isViewer } = useAuth();
+  const { isAdmin, isEditor } = useAuth();
   const [suppliers, setSuppliers] = useState<Supplier[]>(initialSuppliers);
   const [view, setView] = useState<'card' | 'table'>('card');
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortAsc, setSortAsc] = useState(true);
   const [currentPage, setCurrentPage] = useState(1);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
@@ -131,9 +133,29 @@ export default function Suppliers() {
     });
   }, []);
 
-  const totalPages = Math.ceil(suppliers.length / ITEMS_PER_PAGE);
+  const visibleSuppliers = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return suppliers
+      .filter((supplier) =>
+        [
+          supplier.supplierId,
+          supplier.name,
+          supplier.address,
+          supplier.location,
+          supplier.description,
+          supplier.email,
+          supplier.contact,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) => (sortAsc ? a.name.localeCompare(b.name) : b.name.localeCompare(a.name)));
+  }, [searchQuery, sortAsc, suppliers]);
+
+  const totalPages = Math.max(1, Math.ceil(visibleSuppliers.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentSuppliers = suppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentSuppliers = visibleSuppliers.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -220,7 +242,7 @@ export default function Suppliers() {
     }
   };
 
-  const canModify = isAdmin() || isEditor();
+  const canModify = isAdmin();
 
   return (
     <div className="p-8">
@@ -230,7 +252,30 @@ export default function Suppliers() {
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <ViewToggle currentView={view} onViewChange={setView} />
+        <div className="flex items-center gap-3 flex-1">
+          <ViewToggle currentView={view} onViewChange={setView} />
+          <div className="flex-1 relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-300" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search suppliers..."
+              className="w-full pl-11 pr-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 border-2 border-border rounded-lg text-card-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 hover:border-primary/50 transition-all duration-300 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <button
+            onClick={() => setSortAsc((value) => !value)}
+            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-secondary border-2 border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-all duration-300"
+            title="Toggle sort order"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="text-sm">{sortAsc ? 'A-Z' : 'Z-A'}</span>
+          </button>
+        </div>
         {canModify && (
           <button
             onClick={() => {
@@ -331,9 +376,11 @@ export default function Suppliers() {
                                 backdrop-blur-sm border-b-2 border-primary/30 z-10"
                 >
                   <tr>
-                    <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">ID</th>
+                    <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier ID</th>
                     <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Name</th>
+                    <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Address</th>
                     <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Location</th>
+                    <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Description</th>
                     <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Email</th>
                     <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Contact</th>
                     {canModify && (
@@ -370,8 +417,19 @@ export default function Suppliers() {
                           className="relative text-sm text-muted-foreground group-hover:text-card-foreground 
                                        transition-colors duration-300"
                         >
+                          {supplier.address}
+                        </span>
+                      </td>
+                      <td className="py-4 px-6 relative">
+                        <span
+                          className="relative text-sm text-muted-foreground group-hover:text-card-foreground 
+                                       transition-colors duration-300"
+                        >
                           {supplier.location}
                         </span>
+                      </td>
+                      <td className="py-4 px-6 relative">
+                        <span className="relative text-sm text-muted-foreground line-clamp-2">{supplier.description}</span>
                       </td>
                       <td className="py-4 px-6 relative">
                         <span className="relative text-sm text-muted-foreground">{supplier.email}</span>
@@ -451,7 +509,7 @@ export default function Suppliers() {
                        focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                        hover:border-primary/50 transition-all duration-300 
                        placeholder:text-muted-foreground/50"
-              placeholder="Enter supplier name"
+              placeholder="e.g., Karibu Lab Supplies"
             />
           </div>
 
@@ -469,7 +527,7 @@ export default function Suppliers() {
                        focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                        hover:border-primary/50 transition-all duration-300 
                        placeholder:text-muted-foreground/50 resize-none"
-              placeholder="Describe the supplier's services..."
+              placeholder="e.g., Lab equipment"
             />
           </div>
 
@@ -488,7 +546,7 @@ export default function Suppliers() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50"
-                placeholder="Street address"
+                placeholder="e.g., Nairobi Rd"
               />
             </div>
             <div className="group">
@@ -505,7 +563,7 @@ export default function Suppliers() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50"
-                placeholder="City, State ZIP"
+                placeholder="e.g., Nairobi"
               />
             </div>
           </div>
@@ -525,7 +583,7 @@ export default function Suppliers() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50"
-                placeholder="contact@supplier.com"
+                placeholder="e.g., karibu@labs.co.ke"
               />
             </div>
             <div className="group">
@@ -542,7 +600,7 @@ export default function Suppliers() {
                          focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20
                          hover:border-primary/50 transition-all duration-300 
                          placeholder:text-muted-foreground/50"
-                placeholder="+1 (555) 123-4567"
+                placeholder="e.g., 0712345678"
               />
             </div>
           </div>

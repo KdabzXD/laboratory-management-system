@@ -1,12 +1,19 @@
 const API_BASE_URL = ((import.meta as any).env?.VITE_API_BASE_URL as string) || 'http://localhost:3001/api';
 
-function getAuthHeaders(): HeadersInit {
+function getAuthHeaders(method: string = 'GET'): HeadersInit {
   if (typeof window === 'undefined') {
     return {};
   }
 
   const role = (localStorage.getItem('labflow_role') || 'viewer').toLowerCase();
-  const editorPin = localStorage.getItem('labflow_editor_pin') || '';
+  let editorPin = localStorage.getItem('labflow_editor_pin') || '';
+
+  if (role === 'editor' && method !== 'GET' && !editorPin) {
+    editorPin = window.prompt('Enter editor PIN to continue') || '';
+    if (editorPin) {
+      localStorage.setItem('labflow_editor_pin', editorPin);
+    }
+  }
 
   const headers: HeadersInit = {
     'x-user-role': role,
@@ -21,10 +28,11 @@ function getAuthHeaders(): HeadersInit {
 }
 
 async function request<T>(path: string, init: RequestInit = {}): Promise<T> {
+  const method = init.method || 'GET';
   const response = await fetch(`${API_BASE_URL}${path}`, {
     ...init,
     headers: {
-      ...getAuthHeaders(),
+      ...getAuthHeaders(method),
       ...(init.headers || {}),
     },
   });

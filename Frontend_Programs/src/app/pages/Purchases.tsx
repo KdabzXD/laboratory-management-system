@@ -1,17 +1,19 @@
-import { useEffect, useState } from 'react';
-import { ShoppingCart, Calendar, Package, Plus, AlertCircle, Edit2, Trash2 } from 'lucide-react';
+import { useEffect, useMemo, useState } from 'react';
+import { ShoppingCart, Calendar, Package, Plus, AlertCircle, Edit2, Trash2, Search, ArrowUpDown } from 'lucide-react';
 import { motion } from 'motion/react';
 import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
-import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../api/client';
+import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
 
 interface Purchase {
   purchaseId: string;
+  referenceNumber?: string;
   materialName: string;
   quantity: number;
   supplier: string;
+  supplierEmail?: string;
   purchaseDate: string;
   totalCost: number;
   status: 'pending' | 'completed';
@@ -24,6 +26,7 @@ interface PurchaseApi {
   material_quantity: number;
   supplier_id: number;
   supplier_name: string;
+  supplier_email?: string;
   purchase_date: string;
   status_id: number | null;
   status_name: string | null;
@@ -126,7 +129,7 @@ const initialPurchases: Purchase[] = [
 const ITEMS_PER_PAGE = 6;
 
 export default function Purchases() {
-  const { isAdmin, isEditor, isViewer } = useAuth();
+  const { isAdmin, isEditor } = useAuth();
   const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
   const [materialOptions, setMaterialOptions] = useState<string[]>(materials);
   const [supplierOptions, setSupplierOptions] = useState<string[]>(suppliers);
@@ -134,6 +137,8 @@ export default function Purchases() {
   const [suppliersApi, setSuppliersApi] = useState<SupplierApi[]>([]);
   const [statusIds, setStatusIds] = useState<{ pending?: number; completed?: number }>({});
   const [currentPage, setCurrentPage] = useState(1);
+  const [searchQuery, setSearchQuery] = useState('');
+  const [sortAsc, setSortAsc] = useState(true);
   const [isModalOpen, setIsModalOpen] = useState(false);
   const [isEditMode, setIsEditMode] = useState(false);
   const [isEditorAuthOpen, setIsEditorAuthOpen] = useState(false);
@@ -189,9 +194,11 @@ export default function Purchases() {
     setPurchases(
       purchaseRows.map((row) => ({
         purchaseId: String(row.purchase_id),
+        referenceNumber: row.reference_number,
         materialName: row.material_name,
         quantity: Number(row.material_quantity || 0),
         supplier: row.supplier_name,
+        supplierEmail: row.supplier_email,
         purchaseDate: new Date(row.purchase_date).toISOString().split('T')[0],
         totalCost: Number(row.total_cost || 0),
         status: mapStatusName(row.status_name),
@@ -216,9 +223,31 @@ export default function Purchases() {
     });
   }, [formData.materialName, formData.quantity, materialsApi]);
 
-  const totalPages = Math.ceil(purchases.length / ITEMS_PER_PAGE);
+  const visiblePurchases = useMemo(() => {
+    const query = searchQuery.trim().toLowerCase();
+    return purchases
+      .filter((purchase) =>
+        [
+          purchase.purchaseId,
+          purchase.referenceNumber,
+          purchase.materialName,
+          purchase.quantity,
+          purchase.supplier,
+          purchase.supplierEmail,
+          purchase.purchaseDate,
+        ]
+          .join(' ')
+          .toLowerCase()
+          .includes(query)
+      )
+      .sort((a, b) =>
+        sortAsc ? a.materialName.localeCompare(b.materialName) : b.materialName.localeCompare(a.materialName)
+      );
+  }, [purchases, searchQuery, sortAsc]);
+
+  const totalPages = Math.max(1, Math.ceil(visiblePurchases.length / ITEMS_PER_PAGE));
   const startIndex = (currentPage - 1) * ITEMS_PER_PAGE;
-  const currentPurchases = purchases.slice(startIndex, startIndex + ITEMS_PER_PAGE);
+  const currentPurchases = visiblePurchases.slice(startIndex, startIndex + ITEMS_PER_PAGE);
 
   const pendingPurchases = purchases.filter((p) => p.status === 'pending');
   const completedPurchases = purchases.filter((p) => p.status === 'completed');
@@ -418,7 +447,30 @@ export default function Purchases() {
       </div>
 
       <div className="flex items-center justify-between mb-6">
-        <h3 className="text-card-foreground">Recent Purchase Orders</h3>
+        <div className="flex items-center gap-3 flex-1">
+          <h3 className="text-card-foreground whitespace-nowrap">Purchase Details</h3>
+          <div className="flex-1 relative group">
+            <Search className="absolute left-4 top-1/2 -translate-y-1/2 w-4 h-4 text-muted-foreground group-focus-within:text-primary transition-colors duration-300" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(event) => {
+                setSearchQuery(event.target.value);
+                setCurrentPage(1);
+              }}
+              placeholder="Search purchases..."
+              className="w-full pl-11 pr-4 py-3 bg-gradient-to-br from-secondary to-secondary/80 border-2 border-border rounded-lg text-card-foreground focus:outline-none focus:border-primary focus:ring-4 focus:ring-primary/20 hover:border-primary/50 transition-all duration-300 placeholder:text-muted-foreground/50"
+            />
+          </div>
+          <button
+            onClick={() => setSortAsc((value) => !value)}
+            className="flex items-center gap-2 px-4 py-3 rounded-lg bg-secondary border-2 border-border text-muted-foreground hover:border-primary/50 hover:text-primary transition-all duration-300"
+            title="Toggle sort order"
+          >
+            <ArrowUpDown className="w-4 h-4" />
+            <span className="text-sm">{sortAsc ? 'A-Z' : 'Z-A'}</span>
+          </button>
+        </div>
         {canModify && (
           <button
             onClick={() => {
@@ -449,12 +501,12 @@ export default function Purchases() {
               >
                 <tr>
                   <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Purchase ID</th>
-                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Material</th>
-                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Quantity</th>
-                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier</th>
-                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Total Cost</th>
-                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Date</th>
-                  <th className="text-center py-4 px-6 text-sm uppercase tracking-wider text-primary">Status</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Reference Number</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Material Name</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Material Quantity</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Name</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Email</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Purchase Date</th>
                   {canModify && (
                     <th className="text-center py-4 px-6 text-sm uppercase tracking-wider text-primary">Actions</th>
                   )}
@@ -477,6 +529,9 @@ export default function Purchases() {
                       </span>
                     </td>
                     <td className="py-4 px-6 relative">
+                      <span className="relative text-sm text-muted-foreground">{purchase.referenceNumber}</span>
+                    </td>
+                    <td className="py-4 px-6 relative">
                       <span
                         className="relative text-sm text-card-foreground 
                                      group-hover:translate-x-1 inline-block transition-transform duration-300"
@@ -496,12 +551,7 @@ export default function Purchases() {
                       </span>
                     </td>
                     <td className="py-4 px-6 relative">
-                      <span
-                        className="relative text-sm text-accent group-hover:scale-110 inline-block
-                                     transition-transform duration-300"
-                      >
-                        KSh {purchase.totalCost.toLocaleString()}
-                      </span>
+                      <span className="relative text-sm text-muted-foreground">{purchase.supplierEmail || 'N/A'}</span>
                     </td>
                     <td className="py-4 px-6 relative">
                       <span
@@ -510,24 +560,6 @@ export default function Purchases() {
                       >
                         {purchase.purchaseDate}
                       </span>
-                    </td>
-                    <td className="py-4 px-6 relative">
-                      <div className="flex items-center justify-center">
-                        <select
-                          value={purchase.status}
-                          onChange={(e) => handleStatusChange(purchase.purchaseId, e.target.value as 'pending' | 'completed')}
-                          disabled={isViewer()}
-                          title="Purchase Status"
-                          className={`px-2 py-1 rounded-md text-xs font-medium transition-all duration-300 border ${
-                            purchase.status === 'pending'
-                              ? 'bg-yellow-500/20 text-yellow-400 border border-yellow-500/30 hover:bg-yellow-500/30'
-                              : 'bg-green-500/20 text-green-400 border-green-500/30 hover:bg-green-500/30'
-                          } ${isViewer() ? 'cursor-not-allowed opacity-50' : 'hover:scale-105'}`}
-                        >
-                          <option value="pending">Pending</option>
-                          <option value="completed">Completed</option>
-                        </select>
-                      </div>
                     </td>
                     {canModify && (
                       <td className="py-4 px-6 relative">
