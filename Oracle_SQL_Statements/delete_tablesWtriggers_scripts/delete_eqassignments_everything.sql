@@ -1,0 +1,4 @@
+DROP TABLE equipment_assignment CASCADE CONSTRAINTS;
+
+DROP TRIGGER trg_equipment_assignment_biu;
+DROP TRIGGER trg_equipment_assignment_audit;

@@ -37,6 +37,7 @@ function mapStatus(statusName: string | null | undefined): StatusType {
   return 'pending';
 }
 
+
 export default function Dashboard() {
   const [hoveredBar, setHoveredBar] = useState<number | null>(null);
   const [hoveredPie, setHoveredPie] = useState<number | null>(null);
