@@ -1,32 +1,18 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 const logActivity = require('../utils/logger');
 
 async function getStatusIdByName(pool, statusName) {
 	const normalized = String(statusName || '').toLowerCase();
 	if (!normalized) return null;
-
-	const result = await pool
-		.request()
-		.input('status_name', sql.VarChar(20), normalized)
-		.query(`
-			SELECT TOP 1 status_id
-			FROM status_types
-			WHERE LOWER(status_name) = @status_name
-		`);
-
-	return result.recordset[0]?.status_id || null;
+	return normalized.includes('complete') ? 2 : 1;
 }
 
 exports.getStatusTypes = async (_req, res) => {
 	try {
-		const pool = await poolPromise;
-		const result = await pool.request().query(`
-			SELECT status_id, status_name
-			FROM status_types
-			ORDER BY status_id
-		`);
-		return res.json(result.recordset);
+		return res.json([
+			{ status_id: 1, status_name: 'Pending' },
+			{ status_id: 2, status_name: 'Completed' },
+		]);
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to fetch purchase status types', error: err.message });
 	}
@@ -45,14 +31,13 @@ exports.getAll = async (_req, res) => {
 				s.supplier_name,
 				s.supplier_email,
 				p.purchase_date,
-				p.status_id,
-				st.status_name,
-				p.created_at,
+				1 AS status_id,
+				'Pending' AS status_name,
+				p.purchase_date AS created_at,
 				(p.material_quantity * m.material_cost) AS total_cost
 			FROM purchase_details p
 			JOIN lab_materials m ON m.reference_number = p.reference_number
 			JOIN supplier_details s ON s.supplier_id = p.supplier_id
-			LEFT JOIN status_types st ON st.status_id = p.status_id
 			ORDER BY p.purchase_date DESC, p.purchase_id DESC
 		`);
 		return res.json(result.recordset);
@@ -80,9 +65,9 @@ exports.create = async (req, res) => {
 			.input('status_id', sql.Int, finalStatusId)
 			.query(`
 				INSERT INTO purchase_details
-				(reference_number, material_quantity, supplier_id, purchase_date, status_id)
+				(reference_number, material_quantity, supplier_id, purchase_date)
 				VALUES
-				(@reference_number, @material_quantity, @supplier_id, COALESCE(@purchase_date, GETDATE()), @status_id)
+				(@reference_number, @material_quantity, @supplier_id, COALESCE(TO_DATE(@purchase_date, 'YYYY-MM-DD'), TRUNC(SYSDATE)))
 			`);
 
 		await logActivity({
@@ -115,8 +100,7 @@ exports.update = async (req, res) => {
 				SET reference_number = @reference_number,
 						material_quantity = @material_quantity,
 						supplier_id = @supplier_id,
-						purchase_date = @purchase_date,
-						status_id = @status_id
+						purchase_date = TO_DATE(@purchase_date, 'YYYY-MM-DD')
 				WHERE purchase_id = @purchase_id
 			`);
 
@@ -180,14 +164,9 @@ exports.updateStatus = async (req, res) => {
 		const result = await pool
 			.request()
 			.input('purchase_id', sql.Int, Number(purchaseId))
-			.input('status_id', sql.Int, finalStatusId)
-			.query(`
-				UPDATE purchase_details
-				SET status_id = @status_id
-				WHERE purchase_id = @purchase_id
-			`);
+			.query('SELECT purchase_id FROM purchase_details WHERE purchase_id = @purchase_id');
 
-		if (result.rowsAffected[0] === 0) {
+		if (result.recordset.length === 0) {
 			return res.status(404).json({ message: 'Purchase not found' });
 		}
 

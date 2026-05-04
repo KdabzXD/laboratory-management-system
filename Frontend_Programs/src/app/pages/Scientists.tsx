@@ -440,16 +440,6 @@ export default function Scientists() {
                       <Edit2 className="w-3 h-3" />
                       <span className="text-xs">Edit</span>
                     </button>
-                    <button
-                      onClick={() => handleDeleteRequest(scientist)}
-                      className="flex-1 flex items-center justify-center gap-2 px-3 py-2 rounded-lg 
-                               bg-gradient-to-r from-red-500/20 to-red-600/20 border border-red-500/30
-                               text-red-400 hover:from-red-500/30 hover:to-red-600/30 
-                               transition-all duration-300 hover:scale-105"
-                    >
-                      <Trash2 className="w-3 h-3" />
-                      <span className="text-xs">Delete</span>
-                    </button>
                   </div>
                 )}
               </motion.div>
@@ -544,14 +534,6 @@ export default function Scientists() {
                               title="Edit"
                             >
                               <Edit2 className="w-4 h-4" />
-                            </button>
-                            <button
-                              onClick={() => handleDeleteRequest(scientist)}
-                              className="p-2 rounded-lg bg-red-500/20 border border-red-500/30 text-red-400
-                                     hover:bg-red-500/30 hover:scale-110 transition-all duration-300"
-                              title="Delete"
-                            >
-                              <Trash2 className="w-4 h-4" />
                             </button>
                           </div>
                         </td>

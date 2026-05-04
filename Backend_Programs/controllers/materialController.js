@@ -1,5 +1,4 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 const logActivity = require('../utils/logger');
 
 exports.getAll = async (_req, res) => {
@@ -14,9 +13,9 @@ exports.getAll = async (_req, res) => {
 				s.supplier_name,
 				s.supplier_email,
 				m.material_cost,
-				m.stock_quantity,
-				m.reorder_level,
-				m.created_at
+				NULL AS stock_quantity,
+				NULL AS reorder_level,
+				NULL AS created_at
 			FROM lab_materials m
 			JOIN supplier_details s ON s.supplier_id = m.supplier_id
 			ORDER BY m.reference_number
@@ -51,9 +50,9 @@ exports.create = async (req, res) => {
 			.input('reorder_level', sql.Int, reorder_level || 20)
 			.query(`
 				INSERT INTO lab_materials
-				(reference_number, material_name, material_description, supplier_id, material_cost, stock_quantity, reorder_level)
+				(reference_number, material_name, material_description, supplier_id, material_cost)
 				VALUES
-				(@reference_number, @material_name, @material_description, @supplier_id, @material_cost, @stock_quantity, @reorder_level)
+				(@reference_number, @material_name, @material_description, @supplier_id, @material_cost)
 			`);
 
 		await logActivity({
@@ -95,9 +94,7 @@ exports.update = async (req, res) => {
 				SET material_name = @material_name,
 						material_description = @material_description,
 						supplier_id = @supplier_id,
-						material_cost = @material_cost,
-						stock_quantity = @stock_quantity,
-						reorder_level = @reorder_level
+						material_cost = @material_cost
 				WHERE reference_number = @reference_number
 			`);
 
@@ -154,13 +151,12 @@ exports.getRequests = async (_req, res) => {
 				s.scientist_name,
 				mr.request_date,
 				mr.material_quantity,
-				mr.status_id,
-				st.status_name,
-				mr.created_at
+				NULL AS status_id,
+				'Pending' AS status_name,
+				mr.request_date AS created_at
 			FROM material_requests mr
 			JOIN lab_materials m ON m.reference_number = mr.reference_number
 			JOIN scientist_details s ON s.employee_id = mr.employee_id
-			LEFT JOIN status_types st ON st.status_id = mr.status_id
 			ORDER BY mr.request_date DESC, mr.request_id DESC
 		`);
 		return res.json(result.recordset);
@@ -182,9 +178,9 @@ exports.createRequest = async (req, res) => {
 			.input('status_id', sql.Int, status_id || null)
 			.query(`
 				INSERT INTO material_requests
-				(reference_number, employee_id, request_date, material_quantity, status_id)
+				(reference_number, employee_id, request_date, material_quantity)
 				VALUES
-				(@reference_number, @employee_id, COALESCE(@request_date, GETDATE()), @material_quantity, @status_id)
+				(@reference_number, @employee_id, COALESCE(TO_DATE(@request_date, 'YYYY-MM-DD'), TRUNC(SYSDATE)), @material_quantity)
 			`);
 
 		await logActivity({
@@ -216,9 +212,8 @@ exports.updateRequest = async (req, res) => {
 				UPDATE material_requests
 				SET reference_number = @reference_number,
 						employee_id = @employee_id,
-						request_date = @request_date,
-						material_quantity = @material_quantity,
-						status_id = @status_id
+						request_date = TO_DATE(@request_date, 'YYYY-MM-DD'),
+						material_quantity = @material_quantity
 				WHERE request_id = @request_id
 			`);
 

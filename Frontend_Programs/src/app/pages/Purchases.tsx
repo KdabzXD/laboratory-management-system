@@ -5,7 +5,7 @@ import { Pagination } from '../components/Pagination';
 import { Modal } from '../components/Modal';
 import { useAuth, EditorAuthModal } from '../components/RoleBasedAuth';
 import { DeleteConfirmationModal } from '../components/DeleteConfirmationModal';
-import { apiDelete, apiGet, apiPost, apiPut } from '../api/client';
+import { apiDelete, apiGet, apiPatch, apiPost, apiPut } from '../api/client';
 
 interface Purchase {
   purchaseId: string;

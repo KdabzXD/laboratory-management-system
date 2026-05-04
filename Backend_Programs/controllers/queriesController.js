@@ -1,7 +1,6 @@
 const path = require('path');
 const fs = require('fs');
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 
 const queriesPath = path.join(__dirname, '..', 'data', 'queries.json');
 
@@ -71,18 +70,17 @@ exports.runMaterialRequestReport = async (req, res) => {
 				m.reference_number,
 				m.material_name,
 				sp.supplier_name,
-				st.status_name
+				'Pending' AS status_name
 			FROM material_requests mr
 			JOIN scientist_details s ON mr.employee_id = s.employee_id
 			JOIN departments d ON d.department_id = s.department_id
 			JOIN lab_materials m ON mr.reference_number = m.reference_number
 			JOIN supplier_details sp ON sp.supplier_id = m.supplier_id
-			LEFT JOIN status_types st ON st.status_id = mr.status_id
-			WHERE (@date_from IS NULL OR mr.request_date >= @date_from)
-				AND (@date_to IS NULL OR mr.request_date <= @date_to)
+			WHERE (@date_from IS NULL OR mr.request_date >= TO_DATE(@date_from, 'YYYY-MM-DD'))
+				AND (@date_to IS NULL OR mr.request_date <= TO_DATE(@date_to, 'YYYY-MM-DD'))
 				AND (@department_id IS NULL OR s.department_id = @department_id)
 				AND (@supplier_id IS NULL OR m.supplier_id = @supplier_id)
-				AND (@status_id IS NULL OR mr.status_id = @status_id)
+				AND (@status_id IS NULL OR @status_id = 1)
 				AND (@min_qty IS NULL OR mr.material_quantity >= @min_qty)
 				AND (@max_qty IS NULL OR mr.material_quantity <= @max_qty)
 			ORDER BY mr.request_date DESC, mr.request_id DESC

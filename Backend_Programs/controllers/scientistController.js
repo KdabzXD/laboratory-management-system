@@ -1,5 +1,4 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 const logActivity = require('../utils/logger');
 
 exports.getAll = async (_req, res) => {
@@ -12,7 +11,7 @@ exports.getAll = async (_req, res) => {
 				s.scientist_age,
 				s.scientist_email,
 				s.phone_number,
-				s.created_at,
+				NULL AS created_at,
 				d.department_id,
 				d.department_name,
 				sp.specialization_id,
@@ -147,24 +146,7 @@ exports.update = async (req, res) => {
 
 exports.remove = async (req, res) => {
 	try {
-		const { employeeId } = req.params;
-		const pool = await poolPromise;
-		const result = await pool
-			.request()
-			.input('employee_id', sql.VarChar(5), employeeId)
-			.query('DELETE FROM scientist_details WHERE employee_id = @employee_id');
-
-		if (result.rowsAffected[0] === 0) {
-			return res.status(404).json({ message: 'Scientist not found' });
-		}
-
-		await logActivity({
-			activityType: 'Scientist Deleted',
-			description: `Scientist ${employeeId} deleted`,
-			performedBy: req.user?.username || 'system',
-		});
-
-		return res.json({ message: 'Scientist deleted successfully' });
+		return res.status(409).json({ message: 'Deleting scientist records is disabled by the Oracle schema.' });
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to delete scientist', error: err.message });
 	}

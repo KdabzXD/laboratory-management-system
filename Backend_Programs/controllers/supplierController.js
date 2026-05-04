@@ -1,5 +1,4 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 const logActivity = require('../utils/logger');
 
 exports.getAll = async (_req, res) => {
@@ -14,7 +13,7 @@ exports.getAll = async (_req, res) => {
 				supplier_description,
 				supplier_email,
 				supplier_contact,
-				created_at
+				NULL AS created_at
 			FROM supplier_details
 			ORDER BY supplier_id
 		`);
@@ -36,7 +35,7 @@ exports.create = async (req, res) => {
 		} = req.body;
 
 		const pool = await poolPromise;
-		const result = await pool
+		await pool
 			.request()
 			.input('supplier_name', sql.VarChar(50), supplier_name)
 			.input('supplier_address', sql.VarChar(100), supplier_address)
@@ -47,10 +46,14 @@ exports.create = async (req, res) => {
 			.query(`
 				INSERT INTO supplier_details
 				(supplier_name, supplier_address, supplier_location, supplier_description, supplier_email, supplier_contact)
-				OUTPUT INSERTED.supplier_id
 				VALUES
 				(@supplier_name, @supplier_address, @supplier_location, @supplier_description, @supplier_email, @supplier_contact)
 			`);
+
+		const result = await pool
+			.request()
+			.input('supplier_email', sql.VarChar(70), supplier_email)
+			.query('SELECT supplier_id FROM supplier_details WHERE supplier_email = LOWER(TRIM(@supplier_email))');
 
 		await logActivity({
 			activityType: 'Supplier Created',
@@ -115,24 +118,7 @@ exports.update = async (req, res) => {
 
 exports.remove = async (req, res) => {
 	try {
-		const { supplierId } = req.params;
-		const pool = await poolPromise;
-		const result = await pool
-			.request()
-			.input('supplier_id', sql.Int, Number(supplierId))
-			.query('DELETE FROM supplier_details WHERE supplier_id = @supplier_id');
-
-		if (result.rowsAffected[0] === 0) {
-			return res.status(404).json({ message: 'Supplier not found' });
-		}
-
-		await logActivity({
-			activityType: 'Supplier Deleted',
-			description: `Supplier ${supplierId} deleted`,
-			performedBy: req.user?.username || 'system',
-		});
-
-		return res.json({ message: 'Supplier deleted successfully' });
+		return res.status(409).json({ message: 'Deleting suppliers is disabled by the Oracle schema.' });
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to delete supplier', error: err.message });
 	}

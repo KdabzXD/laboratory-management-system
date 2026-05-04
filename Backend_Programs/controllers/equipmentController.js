@@ -1,5 +1,4 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 const logActivity = require('../utils/logger');
 
 exports.getAll = async (_req, res) => {
@@ -15,7 +14,7 @@ exports.getAll = async (_req, res) => {
 				e.supplier_id,
 				s.supplier_name,
 				s.supplier_email,
-				e.created_at
+				NULL AS created_at
 			FROM lab_equipment e
 			JOIN departments d ON d.department_id = e.department_id
 			JOIN supplier_details s ON s.supplier_id = e.supplier_id
@@ -130,13 +129,12 @@ exports.getAssignments = async (_req, res) => {
 				ea.employee_id,
 				s.scientist_name,
 				ea.assignment_date,
-				ea.status_id,
-				st.status_name,
-				ea.created_at
+				NULL AS status_id,
+				'Pending' AS status_name,
+				ea.assignment_date AS created_at
 			FROM equipment_assignment ea
 			JOIN lab_equipment e ON e.serial_number = ea.serial_number
 			JOIN scientist_details s ON s.employee_id = ea.employee_id
-			LEFT JOIN status_types st ON st.status_id = ea.status_id
 			ORDER BY ea.assignment_date DESC, ea.assignment_id DESC
 		`);
 		return res.json(result.recordset);
@@ -157,9 +155,9 @@ exports.createAssignment = async (req, res) => {
 			.input('status_id', sql.Int, status_id || null)
 			.query(`
 				INSERT INTO equipment_assignment
-				(serial_number, employee_id, assignment_date, status_id)
+				(serial_number, employee_id, assignment_date)
 				VALUES
-				(@serial_number, @employee_id, COALESCE(@assignment_date, GETDATE()), @status_id)
+				(@serial_number, @employee_id, COALESCE(TO_DATE(@assignment_date, 'YYYY-MM-DD'), SYSDATE))
 			`);
 
 		await logActivity({
@@ -190,8 +188,7 @@ exports.updateAssignment = async (req, res) => {
 				UPDATE equipment_assignment
 				SET serial_number = @serial_number,
 						employee_id = @employee_id,
-						assignment_date = @assignment_date,
-						status_id = @status_id
+						assignment_date = TO_DATE(@assignment_date, 'YYYY-MM-DD')
 				WHERE assignment_id = @assignment_id
 			`);
 

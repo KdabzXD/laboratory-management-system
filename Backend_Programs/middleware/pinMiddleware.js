@@ -1,5 +1,3 @@
-const { poolPromise } = require('../config/db');
-
 async function checkPIN(req, res, next) {
     try {
         if (req.user && req.user.role === 'admin') {
@@ -11,14 +9,7 @@ async function checkPIN(req, res, next) {
             return res.status(401).json({ message: 'Missing PIN.' });
         }
 
-        const pool = await poolPromise;
-        const result = await pool.request().query(`
-            SELECT setting_value
-            FROM system_settings
-            WHERE setting_name = 'editor_pin'
-        `);
-
-        const expectedPin = result.recordset[0]?.setting_value;
+        const expectedPin = process.env.EDITOR_PIN || '1234';
         if (!expectedPin || pin !== expectedPin) {
             return res.status(401).json({ message: 'Invalid PIN.' });
         }

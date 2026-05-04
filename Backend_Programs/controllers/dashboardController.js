@@ -1,5 +1,4 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 
 exports.getStats = async (_req, res) => {
 	try {
@@ -10,7 +9,7 @@ exports.getStats = async (_req, res) => {
 				(SELECT COUNT(*) FROM lab_equipment) AS total_equipment,
 				(SELECT COUNT(*) FROM supplier_details) AS total_suppliers,
 				(SELECT COUNT(*) FROM purchase_details) AS total_purchases,
-				(SELECT ISNULL(SUM(material_cost), 0) FROM lab_materials) AS total_material_cost
+				(SELECT NVL(SUM(material_cost), 0) FROM lab_materials) AS total_material_cost
 		`);
 		return res.json(result.recordset[0]);
 	} catch (err) {
@@ -38,7 +37,7 @@ exports.getMaterialCostBySupplier = async (_req, res) => {
 	try {
 		const pool = await poolPromise;
 		const result = await pool.request().query(`
-			SELECT s.supplier_name, ISNULL(SUM(m.material_cost), 0) AS total_cost
+			SELECT s.supplier_name, NVL(SUM(m.material_cost), 0) AS total_cost
 			FROM supplier_details s
 			LEFT JOIN lab_materials m ON m.supplier_id = s.supplier_id
 			GROUP BY s.supplier_name
@@ -65,11 +64,10 @@ exports.getLatestAssignments = async (req, res) => {
 					ea.employee_id,
 					s.scientist_name,
 					ea.assignment_date,
-					st.status_name
+					'Pending' AS status_name
 				FROM equipment_assignment ea
 				JOIN lab_equipment e ON ea.serial_number = e.serial_number
 				JOIN scientist_details s ON ea.employee_id = s.employee_id
-				LEFT JOIN status_types st ON st.status_id = ea.status_id
 				ORDER BY ea.assignment_date DESC, ea.assignment_id DESC
 			`);
 		return res.json(result.recordset);
@@ -94,11 +92,10 @@ exports.getLatestMaterialRequests = async (req, res) => {
 					s.scientist_name,
 					mr.request_date,
 					mr.material_quantity,
-					st.status_name
+					'Pending' AS status_name
 				FROM material_requests mr
 				JOIN lab_materials m ON mr.reference_number = m.reference_number
 				JOIN scientist_details s ON mr.employee_id = s.employee_id
-				LEFT JOIN status_types st ON st.status_id = mr.status_id
 				ORDER BY mr.request_date DESC, mr.request_id DESC
 			`);
 		return res.json(result.recordset);

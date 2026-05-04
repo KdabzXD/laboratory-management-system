@@ -1,37 +1,18 @@
-const sql = require('mssql/msnodesqlv8');
-const { poolPromise } = require('../config/db');
+const { poolPromise, sql } = require('../config/db');
 
 exports.getRecentActivity = async (req, res) => {
 	try {
 		const limit = Number(req.query.limit || 20);
 		const pool = await poolPromise;
-		const result = await pool
-			.request()
-			.input('limit', sql.Int, Number.isNaN(limit) ? 20 : limit)
-			.query(`
-				SELECT TOP (@limit)
-					activity_id,
-					activity_type,
-					description,
-					performed_by,
-					activity_time
-				FROM activity_logs
-				ORDER BY activity_time DESC
-			`);
-
-		if (result.recordset.length > 0) {
-			return res.json(result.recordset);
-		}
-
 		const fallback = await pool
 			.request()
 			.input('limit', sql.Int, Number.isNaN(limit) ? 20 : limit)
 			.query(`
 				WITH feed AS (
 					SELECT
-						CAST(ea.assignment_id AS VARCHAR(50)) AS activity_id,
+						CAST(ea.assignment_id AS VARCHAR2(50)) AS activity_id,
 						'Assignment Created' AS activity_type,
-						CONCAT('Equipment ', e.equipment_name, ' assigned to ', s.scientist_name) AS description,
+						'Equipment ' || e.equipment_name || ' assigned to ' || s.scientist_name AS description,
 						'system' AS performed_by,
 						ea.assignment_date AS activity_time
 					FROM equipment_assignment ea
@@ -41,9 +22,9 @@ exports.getRecentActivity = async (req, res) => {
 					UNION ALL
 
 					SELECT
-						CAST(mr.request_id AS VARCHAR(50)) AS activity_id,
+						CAST(mr.request_id AS VARCHAR2(50)) AS activity_id,
 						'Material Request Created' AS activity_type,
-						CONCAT(s.scientist_name, ' requested ', mr.material_quantity, ' of ', m.material_name) AS description,
+						s.scientist_name || ' requested ' || mr.material_quantity || ' of ' || m.material_name AS description,
 						'system' AS performed_by,
 						mr.request_date AS activity_time
 					FROM material_requests mr
@@ -53,9 +34,9 @@ exports.getRecentActivity = async (req, res) => {
 					UNION ALL
 
 					SELECT
-						CAST(p.purchase_id AS VARCHAR(50)) AS activity_id,
+						CAST(p.purchase_id AS VARCHAR2(50)) AS activity_id,
 						'Purchase Created' AS activity_type,
-						CONCAT('Purchase for ', p.material_quantity, ' of ', m.material_name, ' from ', sp.supplier_name) AS description,
+						'Purchase for ' || p.material_quantity || ' of ' || m.material_name || ' from ' || sp.supplier_name AS description,
 						'system' AS performed_by,
 						p.purchase_date AS activity_time
 					FROM purchase_details p
