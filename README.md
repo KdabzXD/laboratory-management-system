@@ -1,50 +1,14 @@
-<div style="display: flex; align-items: center; gap: 16px; margin-bottom: 24px;">
-  <svg width="64" height="64" viewBox="0 0 64 64" style="filter: drop-shadow(0 0 12px rgba(192, 132, 252, 0.6));">
-    <defs>
-    </defs>
-    <!-- Left Flask -->
-    <g>
-      <animateTransform attributeName="transform" type="translate" values="0 0;0 -8;0 0" dur="3s" repeatCount="indefinite" />
-      <path d="M 12 20 L 14 12 Q 14 10 16 10 L 20 10 Q 22 10 22 12 L 24 20 L 24 35 Q 24 40 20 42 L 16 42 Q 12 40 12 35 Z" fill="none" stroke="#c084fc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="16" cy="45" r="1" fill="#f0abfc" opacity="0.7">
-        <animate attributeName="cy" values="45;15;45" dur="1.5s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" repeatCount="indefinite" />
-      </circle>
-      <circle cx="20" cy="45" r="1" fill="#f0abfc" opacity="0.7">
-        <animate attributeName="cy" values="45;15;45" dur="1.5s" begin="0.5s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" begin="0.5s" repeatCount="indefinite" />
-      </circle>
-    </g>
-    <!-- Center Test Tube (rotating) -->
-    <g>
-      <animateTransform attributeName="transform" attributeType="XML" type="rotate" values="0 32 32;360 32 32" dur="6s" repeatCount="indefinite" />
-      <rect x="30" y="8" width="4" height="32" rx="2" fill="none" stroke="#a855f7" stroke-width="1.5"/>
-      <circle cx="32" cy="42" r="3" fill="none" stroke="#a855f7" stroke-width="1.5"/>
-      <circle cx="32" cy="35" r="0.8" fill="#e879f9">
-        <animate attributeName="cy" values="35;12;35" dur="1.5s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" repeatCount="indefinite" />
-      </circle>
-    </g>
-    <!-- Right Flask (beaker) -->
-    <g>
-      <animateTransform attributeName="transform" type="translate" values="0 0;0 -8;0 0" dur="3.5s" begin="0.5s" repeatCount="indefinite" />
-      <path d="M 42 20 L 42 12 Q 42 10 44 10 L 48 10 Q 50 10 50 12 L 50 35 Q 50 40 46 42 L 44 42 Q 40 40 40 35 Z" fill="none" stroke="#f0abfc" stroke-width="1.5" stroke-linecap="round" stroke-linejoin="round"/>
-      <circle cx="44" cy="45" r="1" fill="#c084fc" opacity="0.7">
-        <animate attributeName="cy" values="45;15;45" dur="1.5s" begin="0.25s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" begin="0.25s" repeatCount="indefinite" />
-      </circle>
-      <circle cx="48" cy="45" r="1" fill="#c084fc" opacity="0.7">
-        <animate attributeName="cy" values="45;15;45" dur="1.5s" begin="0.75s" repeatCount="indefinite" />
-        <animate attributeName="opacity" values="0;1;0" dur="1.5s" begin="0.75s" repeatCount="indefinite" />
-      </circle>
-    </g>
-  </svg>
-  <h1 style="margin: 0; font-size: 2.5em; background: linear-gradient(135deg, #c084fc, #f0abfc); -webkit-background-clip: text; -webkit-text-fill-color: transparent; background-clip: text;">Laboratory Management System</h1>
+<div align="center">
+
+<img src="screenshots/lab-animation.svg" alt="Animated laboratory equipment banner" width="100%" />
+
+# Laboratory Management System
+
+A full-stack laboratory operations platform for managing scientists, equipment, materials, suppliers, purchases, activity logs, and report queries.
+
 </div>
 
 ![Dashboard Screenshot](screenshots/dashboard-overview.png)
-
-A full-stack laboratory operations platform for managing scientists, equipment, materials, suppliers, purchases, activity logs, and report queries.
 
 ## What This Project Includes
 
