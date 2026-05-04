@@ -9,7 +9,7 @@ async function checkPIN(req, res, next) {
             return res.status(401).json({ message: 'Missing PIN.' });
         }
 
-        const expectedPin = process.env.EDITOR_PIN || '1234';
+        const expectedPin = process.env.EDITOR_PIN || '87654321';
         if (!expectedPin || pin !== expectedPin) {
             return res.status(401).json({ message: 'Invalid PIN.' });
         }

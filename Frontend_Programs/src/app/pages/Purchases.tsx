@@ -42,11 +42,36 @@ interface MaterialApi {
 interface SupplierApi {
   supplier_id: number;
   supplier_name: string;
+  supplier_email?: string;
 }
 
 interface StatusTypeApi {
   status_id: number;
   status_name: string;
+}
+
+const statusPillClasses = {
+  pending: 'bg-yellow-500/20 text-yellow-400 border-yellow-500/30',
+  completed: 'bg-green-500/20 text-green-400 border-green-500/30',
+};
+
+const STATUS_STORAGE_KEY = 'labflow_purchase_status_overrides';
+
+function loadStatusOverrides(): Record<string, 'pending' | 'completed'> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(STATUS_STORAGE_KEY);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, 'pending' | 'completed'>;
+    return parsed || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStatusOverrides(overrides: Record<string, 'pending' | 'completed'>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(STATUS_STORAGE_KEY, JSON.stringify(overrides));
 }
 
 const materials = [
@@ -69,68 +94,11 @@ const suppliers = [
   'Global Lab Resources',
 ];
 
-const initialPurchases: Purchase[] = [
-  {
-    purchaseId: 'PO-2026-001',
-    materialName: 'DNA Extraction Kit',
-    quantity: 100,
-    supplier: 'BioTech Solutions',
-    purchaseDate: '2026-03-15',
-    totalCost: 245000,
-    status: 'pending',
-  },
-  {
-    purchaseId: 'PO-2026-002',
-    materialName: 'PCR Reagent Set',
-    quantity: 50,
-    supplier: 'LabSupply Co.',
-    purchaseDate: '2026-03-18',
-    totalCost: 142500,
-    status: 'pending',
-  },
-  {
-    purchaseId: 'PO-2026-003',
-    materialName: 'Microcentrifuge Tubes',
-    quantity: 200,
-    supplier: 'Scientific Supplies Inc.',
-    purchaseDate: '2026-03-20',
-    totalCost: 63000,
-    status: 'completed',
-  },
-  {
-    purchaseId: 'PO-2026-004',
-    materialName: 'Cell Culture Medium',
-    quantity: 75,
-    supplier: 'LabSupply Co.',
-    purchaseDate: '2026-03-10',
-    totalCost: 67125,
-    status: 'completed',
-  },
-  {
-    purchaseId: 'PO-2026-005',
-    materialName: 'Antibody Panel Set',
-    quantity: 25,
-    supplier: 'BioTech Solutions',
-    purchaseDate: '2026-03-23',
-    totalCost: 125000,
-    status: 'pending',
-  },
-  {
-    purchaseId: 'PO-2026-006',
-    materialName: 'Gel Electrophoresis Kit',
-    quantity: 10,
-    supplier: 'ChemLab Direct',
-    purchaseDate: '2026-03-25',
-    totalCost: 45000,
-    status: 'completed',
-  },
-];
-
 const ITEMS_PER_PAGE = 6;
 
 export default function Purchases() {
   const { isAdmin, isEditor } = useAuth();
-  const [purchases, setPurchases] = useState<Purchase[]>(initialPurchases);
+  const [purchases, setPurchases] = useState<Purchase[]>([]);
   const [materialOptions, setMaterialOptions] = useState<string[]>(materials);
   const [supplierOptions, setSupplierOptions] = useState<string[]>(suppliers);
   const [materialsApi, setMaterialsApi] = useState<MaterialApi[]>([]);
@@ -191,18 +159,26 @@ export default function Purchases() {
     }
     setStatusIds(nextStatusIds);
 
+    const supplierEmailLookup = new Map(
+      supplierRows.map((row) => [row.supplier_id, row.supplier_email || ''])
+    );
+
+    const statusOverrides = loadStatusOverrides();
     setPurchases(
-      purchaseRows.map((row) => ({
-        purchaseId: String(row.purchase_id),
-        referenceNumber: row.reference_number,
-        materialName: row.material_name,
-        quantity: Number(row.material_quantity || 0),
-        supplier: row.supplier_name,
-        supplierEmail: row.supplier_email,
-        purchaseDate: new Date(row.purchase_date).toISOString().split('T')[0],
-        totalCost: Number(row.total_cost || 0),
-        status: mapStatusName(row.status_name),
-      }))
+      purchaseRows.map((row) => {
+        const purchaseId = String(row.purchase_id);
+        return {
+          purchaseId,
+          referenceNumber: row.reference_number,
+          materialName: row.material_name,
+          quantity: Number(row.material_quantity || 0),
+          supplier: row.supplier_name,
+          supplierEmail: row.supplier_email || supplierEmailLookup.get(row.supplier_id) || undefined,
+          purchaseDate: new Date(row.purchase_date).toISOString().split('T')[0],
+          totalCost: Number(row.total_cost || 0),
+          status: statusOverrides[purchaseId] || mapStatusName(row.status_name),
+        };
+      })
     );
   };
 
@@ -360,14 +336,29 @@ export default function Purchases() {
       return;
     }
 
+    const numericPurchaseId = Number(purchaseId);
+    if (Number.isNaN(numericPurchaseId)) {
+      alert('Status updates are available once purchases are loaded from the API.');
+      return;
+    }
+
     const statusId = nextStatus === 'completed' ? statusIds.completed : statusIds.pending;
-    if (!statusId) return;
+    const payload = statusId
+      ? { status_id: statusId }
+      : { status_name: nextStatus === 'completed' ? 'Completed' : 'Pending' };
+
+    setPurchases((prev) =>
+      prev.map((purchase) =>
+        purchase.purchaseId === purchaseId ? { ...purchase, status: nextStatus } : purchase
+      )
+    );
+
+    const overrides = loadStatusOverrides();
+    overrides[purchaseId] = nextStatus;
+    saveStatusOverrides(overrides);
 
     try {
-      await apiPatch<{ message: string }>(`/purchases/${purchaseId}/status`, {
-        status_id: statusId,
-      });
-      await loadPurchasesPage();
+      await apiPatch<{ message: string }>(`/purchases/${numericPurchaseId}/status`, payload);
     } catch (error: any) {
       alert(error?.message || 'Failed to update purchase status.');
     }
@@ -507,6 +498,7 @@ export default function Purchases() {
                   <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Name</th>
                   <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Supplier Email</th>
                   <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Purchase Date</th>
+                  <th className="text-left py-4 px-6 text-sm uppercase tracking-wider text-primary">Status</th>
                   {canModify && (
                     <th className="text-center py-4 px-6 text-sm uppercase tracking-wider text-primary">Actions</th>
                   )}
@@ -560,6 +552,24 @@ export default function Purchases() {
                       >
                         {purchase.purchaseDate}
                       </span>
+                    </td>
+                    <td className="py-4 px-6 relative">
+                      {canModify ? (
+                        <select
+                          value={purchase.status}
+                          onChange={(event) => handleStatusChange(purchase.purchaseId, event.target.value as Purchase['status'])}
+                          className={`text-[11px] px-2 py-0.5 h-6 min-w-[88px] rounded-full border bg-transparent
+                                     focus:outline-none focus:ring-2 focus:ring-primary/40
+                                     ${statusPillClasses[purchase.status]}`}
+                        >
+                          <option value="pending">Pending</option>
+                          <option value="completed">Completed</option>
+                        </select>
+                      ) : (
+                        <span className={`text-xs px-3 py-1 rounded-full border ${statusPillClasses[purchase.status]}`}>
+                          {purchase.status}
+                        </span>
+                      )}
                     </td>
                     {canModify && (
                       <td className="py-4 px-6 relative">

@@ -5,9 +5,29 @@ import { motion } from 'motion/react';
 import { useEffect, useState } from 'react';
 import { apiGet } from '../api/client';
 
-const chartColors = ['#06b6d4', '#14b8a6', '#0891b2', '#0d9488', '#22d3ee', '#0ea5e9'];
+const chartColors = ['#c084fc', '#f0abfc', '#a855f7', '#d8b4fe', '#e879f9', '#7c3aed'];
 
 type StatusType = 'pending' | 'approved' | 'completed' | 'in-progress';
+
+const ASSIGNMENT_STATUS_KEY = 'labflow_assignment_status_overrides';
+const REQUEST_STATUS_KEY = 'labflow_request_status_overrides';
+
+function loadStatusOverrides(storageKey: string): Record<string, StatusType> {
+  if (typeof window === 'undefined') return {};
+  try {
+    const raw = localStorage.getItem(storageKey);
+    if (!raw) return {};
+    const parsed = JSON.parse(raw) as Record<string, StatusType>;
+    return parsed || {};
+  } catch {
+    return {};
+  }
+}
+
+function saveStatusOverrides(storageKey: string, overrides: Record<string, StatusType>) {
+  if (typeof window === 'undefined') return;
+  localStorage.setItem(storageKey, JSON.stringify(overrides));
+}
 
 function mapStatus(statusName: string | null | undefined): StatusType {
   const value = String(statusName || '').toLowerCase();
@@ -94,25 +114,27 @@ export default function Dashboard() {
       }
 
       if (assignmentsResult.status === 'fulfilled') {
+        const overrides = loadStatusOverrides(ASSIGNMENT_STATUS_KEY);
         setEquipmentAssignments(
           assignmentsResult.value.map((row) => ({
             id: String(row.assignment_id),
             name: row.equipment_name,
             assignedTo: row.scientist_name,
-            status: mapStatus(row.status_name),
+            status: overrides[String(row.assignment_id)] || mapStatus(row.status_name),
             date: new Date(row.assignment_date).toISOString().split('T')[0],
           }))
         );
       }
 
       if (requestsResult.status === 'fulfilled') {
+        const overrides = loadStatusOverrides(REQUEST_STATUS_KEY);
         setMaterialRequests(
           requestsResult.value.map((row) => ({
             id: String(row.request_id),
             name: row.material_name,
             requestedBy: row.scientist_name,
             quantity: Number(row.material_quantity || 0),
-            status: mapStatus(row.status_name),
+            status: overrides[String(row.request_id)] || mapStatus(row.status_name),
             date: new Date(row.request_date).toISOString().split('T')[0],
           }))
         );
@@ -126,6 +148,24 @@ export default function Dashboard() {
 
   const maxEquipmentCount = Math.max(1, ...equipmentByDepartment.map(d => d.count));
   const totalMaterialCost = stats.find((s) => s.title === 'Materials Cost')?.value || 0;
+
+  const handleAssignmentStatusChange = (id: string, status: StatusType) => {
+    const overrides = loadStatusOverrides(ASSIGNMENT_STATUS_KEY);
+    overrides[id] = status;
+    saveStatusOverrides(ASSIGNMENT_STATUS_KEY, overrides);
+    setEquipmentAssignments((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status } : item))
+    );
+  };
+
+  const handleRequestStatusChange = (id: string, status: StatusType) => {
+    const overrides = loadStatusOverrides(REQUEST_STATUS_KEY);
+    overrides[id] = status;
+    saveStatusOverrides(REQUEST_STATUS_KEY, overrides);
+    setMaterialRequests((prev) =>
+      prev.map((item) => (item.id === id ? { ...item, status } : item))
+    );
+  };
 
   return (
     <div className="p-8 space-y-8">
@@ -331,11 +371,13 @@ export default function Dashboard() {
           title="Latest Equipment Assignments"
           activities={equipmentAssignments}
           type="equipment"
+          onStatusChange={handleAssignmentStatusChange}
         />
         <ActivityTable
           title="Recent Material Requests"
           activities={materialRequests}
           type="material"
+          onStatusChange={handleRequestStatusChange}
         />
       </div>
     </div>

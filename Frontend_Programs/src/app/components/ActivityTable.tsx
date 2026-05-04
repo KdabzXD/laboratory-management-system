@@ -14,6 +14,7 @@ interface ActivityTableProps {
   title: string;
   activities: Activity[];
   type: 'equipment' | 'material';
+  onStatusChange?: (id: string, status: Activity['status']) => void;
 }
 
 const statusColors = {
@@ -23,7 +24,7 @@ const statusColors = {
   'in-progress': 'bg-blue-500/20 text-blue-400 border-blue-500/30',
 };
 
-export function ActivityTable({ title, activities, type }: ActivityTableProps) {
+export function ActivityTable({ title, activities, type, onStatusChange }: ActivityTableProps) {
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -67,9 +68,22 @@ export function ActivityTable({ title, activities, type }: ActivityTableProps) {
                   <td className="py-3 px-4 text-sm text-muted-foreground">{activity.quantity}</td>
                 )}
                 <td className="py-3 px-4">
-                  <span className={`text-xs px-3 py-1 rounded-full border ${statusColors[activity.status]}`}>
-                    {activity.status}
-                  </span>
+                  {onStatusChange && activity.status === 'pending' ? (
+                    <select
+                      value={activity.status}
+                      onChange={(event) => onStatusChange(activity.id, event.target.value as Activity['status'])}
+                      className={`text-xs px-2.5 py-1 rounded-full border bg-transparent
+                                 focus:outline-none focus:ring-2 focus:ring-primary/40
+                                 ${statusColors[activity.status]}`}
+                    >
+                      <option value="pending">Pending</option>
+                      <option value="completed">Completed</option>
+                    </select>
+                  ) : (
+                    <span className={`text-xs px-3 py-1 rounded-full border ${statusColors[activity.status]}`}>
+                      {activity.status}
+                    </span>
+                  )}
                 </td>
                 <td className="py-3 px-4 text-sm text-muted-foreground">{activity.date}</td>
               </motion.tr>

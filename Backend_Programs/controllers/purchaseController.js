@@ -31,7 +31,7 @@ exports.getAll = async (_req, res) => {
 				s.supplier_name,
 				s.supplier_email,
 				p.purchase_date,
-				1 AS status_id,
+				NULL AS status_id,
 				'Pending' AS status_name,
 				p.purchase_date AS created_at,
 				(p.material_quantity * m.material_cost) AS total_cost
@@ -48,13 +48,8 @@ exports.getAll = async (_req, res) => {
 
 exports.create = async (req, res) => {
 	try {
-		const { reference_number, material_quantity, supplier_id, purchase_date, status_id } = req.body;
+		const { reference_number, material_quantity, supplier_id, purchase_date } = req.body;
 		const pool = await poolPromise;
-		let finalStatusId = status_id || null;
-
-		if (!finalStatusId) {
-			finalStatusId = await getStatusIdByName(pool, 'Pending');
-		}
 
 		await pool
 			.request()
@@ -62,7 +57,6 @@ exports.create = async (req, res) => {
 			.input('material_quantity', sql.Int, material_quantity)
 			.input('supplier_id', sql.Int, supplier_id)
 			.input('purchase_date', sql.Date, purchase_date || null)
-			.input('status_id', sql.Int, finalStatusId)
 			.query(`
 				INSERT INTO purchase_details
 				(reference_number, material_quantity, supplier_id, purchase_date)
@@ -85,7 +79,7 @@ exports.create = async (req, res) => {
 exports.update = async (req, res) => {
 	try {
 		const { purchaseId } = req.params;
-		const { reference_number, material_quantity, supplier_id, purchase_date, status_id } = req.body;
+		const { reference_number, material_quantity, supplier_id, purchase_date } = req.body;
 		const pool = await poolPromise;
 		const result = await pool
 			.request()
@@ -94,7 +88,6 @@ exports.update = async (req, res) => {
 			.input('material_quantity', sql.Int, material_quantity)
 			.input('supplier_id', sql.Int, supplier_id)
 			.input('purchase_date', sql.Date, purchase_date)
-			.input('status_id', sql.Int, status_id || null)
 			.query(`
 				UPDATE purchase_details
 				SET reference_number = @reference_number,
@@ -148,35 +141,15 @@ exports.remove = async (req, res) => {
 exports.updateStatus = async (req, res) => {
 	try {
 		const { purchaseId } = req.params;
-		const { status_id, status_name } = req.body;
-
-		const pool = await poolPromise;
-		let finalStatusId = status_id || null;
-
-		if (!finalStatusId && status_name) {
-			finalStatusId = await getStatusIdByName(pool, status_name);
-		}
-
-		if (!finalStatusId) {
-			return res.status(400).json({ message: 'A valid status_id or status_name is required.' });
-		}
-
-		const result = await pool
-			.request()
-			.input('purchase_id', sql.Int, Number(purchaseId))
-			.query('SELECT purchase_id FROM purchase_details WHERE purchase_id = @purchase_id');
-
-		if (result.recordset.length === 0) {
-			return res.status(404).json({ message: 'Purchase not found' });
-		}
+		const { status_name } = req.body;
 
 		await logActivity({
 			activityType: 'Purchase Status Updated',
-			description: `Purchase ${purchaseId} status changed to ${finalStatusId}`,
+			description: `Purchase ${purchaseId} status changed to ${status_name || 'Pending'}`,
 			performedBy: req.user?.username || 'system',
 		});
 
-		return res.json({ message: 'Purchase status updated successfully' });
+		return res.json({ message: 'Purchase status updated successfully (client-only).' });
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to update purchase status', error: err.message });
 	}
