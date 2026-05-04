@@ -12,7 +12,7 @@ A full-stack laboratory operations platform for managing scientists, equipment, 
 
 ## What This Project Includes
 
-- SQL Server schema and data scripts
+- Oracle SQL Developer schema and data scripts
 - Express + Node.js backend API with role-based access control
 - React + TypeScript frontend dashboard and management pages
 - Activity logging with fallback feed for operational events
@@ -22,7 +22,7 @@ A full-stack laboratory operations platform for managing scientists, equipment, 
 
 - Frontend: React, TypeScript, Vite, Tailwind CSS, Motion, Recharts
 - Backend: Node.js, Express, mssql (msnodesqlv8), dotenv
-- Database: Microsoft SQL Server
+- Database: Oracle 21c Express Edition
 
 ## Repository Structure
 
@@ -46,6 +46,9 @@ A full-stack laboratory operations platform for managing scientists, equipment, 
 - Update scientist information
 - Delete scientists from the system
 - Metadata-driven ID mapping for departments and specializations
+
+### Departments Management
+- View all the departments and their specializations
 
 ### Equipment Management
 - Complete equipment inventory with detailed specifications
