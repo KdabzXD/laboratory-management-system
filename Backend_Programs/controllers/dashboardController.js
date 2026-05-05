@@ -9,7 +9,10 @@ exports.getStats = async (_req, res) => {
 				(SELECT COUNT(*) FROM lab_equipment) AS total_equipment,
 				(SELECT COUNT(*) FROM supplier_details) AS total_suppliers,
 				(SELECT COUNT(*) FROM purchase_details) AS total_purchases,
-				(SELECT NVL(SUM(material_cost), 0) FROM lab_materials) AS total_material_cost
+				(SELECT NVL(SUM(p.material_quantity * m.material_cost), 0)
+				 FROM purchase_details p
+				 JOIN lab_materials m ON m.reference_number = p.reference_number) AS total_material_cost
+			FROM dual
 		`);
 		return res.json(result.recordset[0]);
 	} catch (err) {
@@ -37,9 +40,10 @@ exports.getMaterialCostBySupplier = async (_req, res) => {
 	try {
 		const pool = await poolPromise;
 		const result = await pool.request().query(`
-			SELECT s.supplier_name, NVL(SUM(m.material_cost), 0) AS total_cost
+			SELECT s.supplier_name, NVL(SUM(p.material_quantity * m.material_cost), 0) AS total_cost
 			FROM supplier_details s
-			LEFT JOIN lab_materials m ON m.supplier_id = s.supplier_id
+			LEFT JOIN purchase_details p ON p.supplier_id = s.supplier_id
+			LEFT JOIN lab_materials m ON m.reference_number = p.reference_number
 			GROUP BY s.supplier_name
 			ORDER BY total_cost DESC
 		`);

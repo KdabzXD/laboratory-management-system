@@ -14,7 +14,7 @@ CREATE TABLE lab_equipment_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_lab_equipment_audit
-AFTER INSERT OR UPDATE ON lab_equipment
+AFTER INSERT OR UPDATE OR DELETE ON lab_equipment
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -58,6 +58,23 @@ BEGIN
       :OLD.supplier_id,
       :NEW.supplier_id,
       'UPDATE'
+    );
+  ELSIF DELETING THEN
+    INSERT INTO lab_equipment_audit (
+      serial_number,
+      old_equipment_name,
+      old_equipment_cost,
+      old_department_id,
+      old_supplier_id,
+      action_type
+    )
+    VALUES (
+      :OLD.serial_number,
+      :OLD.equipment_name,
+      :OLD.equipment_cost,
+      :OLD.department_id,
+      :OLD.supplier_id,
+      'DELETE'
     );
   END IF;
 END;

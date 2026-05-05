@@ -13,7 +13,7 @@ CREATE TABLE purchase_details_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_purchase_details_audit
-AFTER INSERT OR UPDATE ON purchase_details
+AFTER INSERT OR UPDATE OR DELETE ON purchase_details
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -55,6 +55,23 @@ BEGIN
       :OLD.purchase_date,
       :NEW.purchase_date,
       'UPDATE'
+    );
+  ELSIF DELETING THEN
+    INSERT INTO purchase_details_audit (
+      purchase_id,
+      reference_number,
+      old_material_quantity,
+      old_supplier_id,
+      old_purchase_date,
+      action_type
+    )
+    VALUES (
+      :OLD.purchase_id,
+      :OLD.reference_number,
+      :OLD.material_quantity,
+      :OLD.supplier_id,
+      :OLD.purchase_date,
+      'DELETE'
     );
   END IF;
 END;

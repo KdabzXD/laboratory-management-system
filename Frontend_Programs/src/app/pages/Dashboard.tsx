@@ -29,6 +29,10 @@ function saveStatusOverrides(storageKey: string, overrides: Record<string, Statu
   localStorage.setItem(storageKey, JSON.stringify(overrides));
 }
 
+function formatKsh(value: number) {
+  return `KSh ${value.toLocaleString()}`;
+}
+
 function mapStatus(statusName: string | null | undefined): StatusType {
   const value = String(statusName || '').toLowerCase();
   if (value === 'completed') return 'completed';
@@ -180,6 +184,7 @@ export default function Dashboard() {
             icon={stat.icon}
             trend={stat.trend}
             delay={index * 0.1}
+            valueFormatter={stat.title === 'Materials Cost' ? formatKsh : undefined}
           />
         ))}
       </div>

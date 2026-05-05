@@ -14,7 +14,7 @@ CREATE TABLE lab_materials_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_lab_materials_audit
-AFTER INSERT OR UPDATE ON lab_materials
+AFTER INSERT OR UPDATE OR DELETE ON lab_materials
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -58,6 +58,23 @@ BEGIN
       :OLD.material_cost,
       :NEW.material_cost,
       'UPDATE'
+    );
+  ELSIF DELETING THEN
+    INSERT INTO lab_materials_audit (
+      reference_number,
+      old_material_name,
+      old_material_description,
+      old_supplier_id,
+      old_material_cost,
+      action_type
+    )
+    VALUES (
+      :OLD.reference_number,
+      :OLD.material_name,
+      :OLD.material_description,
+      :OLD.supplier_id,
+      :OLD.material_cost,
+      'DELETE'
     );
   END IF;
 END;

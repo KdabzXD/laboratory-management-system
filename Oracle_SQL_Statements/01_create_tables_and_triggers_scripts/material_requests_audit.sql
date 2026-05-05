@@ -12,7 +12,7 @@ CREATE TABLE material_requests_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_material_requests_audit
-AFTER INSERT OR UPDATE ON material_requests
+AFTER INSERT OR UPDATE OR DELETE ON material_requests
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -52,6 +52,23 @@ BEGIN
       :OLD.material_quantity,
       :NEW.material_quantity,
       'UPDATE'
+    );
+  ELSIF DELETING THEN
+    INSERT INTO material_requests_audit (
+      request_id,
+      reference_number,
+      employee_id,
+      old_request_date,
+      old_material_quantity,
+      action_type
+    )
+    VALUES (
+      :OLD.request_id,
+      :OLD.reference_number,
+      :OLD.employee_id,
+      :OLD.request_date,
+      :OLD.material_quantity,
+      'DELETE'
     );
   END IF;
 END;

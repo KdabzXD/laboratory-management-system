@@ -10,9 +10,12 @@ interface StatCardProps {
     isPositive: boolean;
   };
   delay?: number;
+  valueFormatter?: (value: number) => string;
 }
 
-export function StatCard({ title, value, icon: Icon, trend, delay = 0 }: StatCardProps) {
+export function StatCard({ title, value, icon: Icon, trend, delay = 0, valueFormatter }: StatCardProps) {
+  const displayValue = valueFormatter ? valueFormatter(value) : value.toLocaleString();
+
   return (
     <motion.div
       initial={{ opacity: 0, y: 20 }}
@@ -35,7 +38,7 @@ export function StatCard({ title, value, icon: Icon, trend, delay = 0 }: StatCar
       
       <div>
         <h3 className="text-3xl mb-1 bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
-          {value.toLocaleString()}
+          {displayValue}
         </h3>
         <p className="text-sm text-muted-foreground">{title}</p>
       </div>

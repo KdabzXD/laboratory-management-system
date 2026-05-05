@@ -10,7 +10,7 @@ CREATE TABLE equipment_assignment_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_equipment_assignment_audit
-AFTER INSERT OR UPDATE ON equipment_assignment
+AFTER INSERT OR UPDATE OR DELETE ON equipment_assignment
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -44,6 +44,21 @@ BEGIN
       :OLD.assignment_date,
       :NEW.assignment_date,
       'UPDATE'
+    );
+  ELSIF DELETING THEN
+    INSERT INTO equipment_assignment_audit (
+      assignment_id,
+      serial_number,
+      employee_id,
+      old_assignment_date,
+      action_type
+    )
+    VALUES (
+      :OLD.assignment_id,
+      :OLD.serial_number,
+      :OLD.employee_id,
+      :OLD.assignment_date,
+      'DELETE'
     );
   END IF;
 END;

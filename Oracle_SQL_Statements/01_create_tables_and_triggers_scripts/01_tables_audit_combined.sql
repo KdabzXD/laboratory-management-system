@@ -12,7 +12,6 @@ DROP TABLE department_specialization_audit CASCADE CONSTRAINTS;
 DROP TABLE department_audit CASCADE CONSTRAINTS;
 DROP TABLE supplier_audit CASCADE CONSTRAINTS;
 
-
 CREATE TABLE supplier_audit (
   audit_id NUMBER GENERATED ALWAYS AS IDENTITY,
   supplier_id NUMBER NOT NULL,
@@ -203,7 +202,7 @@ CREATE TABLE lab_equipment_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_lab_equipment_audit
-AFTER INSERT OR UPDATE ON lab_equipment
+AFTER INSERT OR UPDATE OR DELETE ON lab_equipment
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -248,10 +247,26 @@ BEGIN
       :NEW.supplier_id,
       'UPDATE'
     );
+  ELSIF DELETING THEN
+    INSERT INTO lab_equipment_audit (
+      serial_number,
+      old_equipment_name,
+      old_equipment_cost,
+      old_department_id,
+      old_supplier_id,
+      action_type
+    )
+    VALUES (
+      :OLD.serial_number,
+      :OLD.equipment_name,
+      :OLD.equipment_cost,
+      :OLD.department_id,
+      :OLD.supplier_id,
+      'DELETE'
+    );
   END IF;
 END;
 /
-
 
 CREATE TABLE lab_materials_audit (
   audit_id NUMBER GENERATED ALWAYS AS IDENTITY PRIMARY KEY,
@@ -269,7 +284,7 @@ CREATE TABLE lab_materials_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_lab_materials_audit
-AFTER INSERT OR UPDATE ON lab_materials
+AFTER INSERT OR UPDATE OR DELETE ON lab_materials
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -314,6 +329,23 @@ BEGIN
       :NEW.material_cost,
       'UPDATE'
     );
+  ELSIF DELETING THEN
+    INSERT INTO lab_materials_audit (
+      reference_number,
+      old_material_name,
+      old_material_description,
+      old_supplier_id,
+      old_material_cost,
+      action_type
+    )
+    VALUES (
+      :OLD.reference_number,
+      :OLD.material_name,
+      :OLD.material_description,
+      :OLD.supplier_id,
+      :OLD.material_cost,
+      'DELETE'
+    );
   END IF;
 END;
 /
@@ -330,7 +362,7 @@ CREATE TABLE equipment_assignment_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_equipment_assignment_audit
-AFTER INSERT OR UPDATE ON equipment_assignment
+AFTER INSERT OR UPDATE OR DELETE ON equipment_assignment
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -365,6 +397,21 @@ BEGIN
       :NEW.assignment_date,
       'UPDATE'
     );
+  ELSIF DELETING THEN
+    INSERT INTO equipment_assignment_audit (
+      assignment_id,
+      serial_number,
+      employee_id,
+      old_assignment_date,
+      action_type
+    )
+    VALUES (
+      :OLD.assignment_id,
+      :OLD.serial_number,
+      :OLD.employee_id,
+      :OLD.assignment_date,
+      'DELETE'
+    );
   END IF;
 END;
 /
@@ -383,7 +430,7 @@ CREATE TABLE material_requests_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_material_requests_audit
-AFTER INSERT OR UPDATE ON material_requests
+AFTER INSERT OR UPDATE OR DELETE ON material_requests
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -424,6 +471,23 @@ BEGIN
       :NEW.material_quantity,
       'UPDATE'
     );
+  ELSIF DELETING THEN
+    INSERT INTO material_requests_audit (
+      request_id,
+      reference_number,
+      employee_id,
+      old_request_date,
+      old_material_quantity,
+      action_type
+    )
+    VALUES (
+      :OLD.request_id,
+      :OLD.reference_number,
+      :OLD.employee_id,
+      :OLD.request_date,
+      :OLD.material_quantity,
+      'DELETE'
+    );
   END IF;
 END;
 /
@@ -443,7 +507,7 @@ CREATE TABLE purchase_details_audit (
 );
 
 CREATE OR REPLACE TRIGGER trg_purchase_details_audit
-AFTER INSERT OR UPDATE ON purchase_details
+AFTER INSERT OR UPDATE OR DELETE ON purchase_details
 FOR EACH ROW
 BEGIN
   IF INSERTING THEN
@@ -486,6 +550,24 @@ BEGIN
       :NEW.purchase_date,
       'UPDATE'
     );
+  ELSIF DELETING THEN
+    INSERT INTO purchase_details_audit (
+      purchase_id,
+      reference_number,
+      old_material_quantity,
+      old_supplier_id,
+      old_purchase_date,
+      action_type
+    )
+    VALUES (
+      :OLD.purchase_id,
+      :OLD.reference_number,
+      :OLD.material_quantity,
+      :OLD.supplier_id,
+      :OLD.purchase_date,
+      'DELETE'
+    );
   END IF;
 END;
 /
+

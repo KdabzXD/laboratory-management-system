@@ -11,7 +11,7 @@ function loadQueries() {
 
 exports.getAllQueries = async (_req, res) => {
 	try {
-		const queries = loadQueries().map(({ id, name }) => ({ id, name }));
+		const queries = loadQueries().map(({ id, name, category }) => ({ id, name, category }));
 		return res.json(queries);
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to load predefined queries', error: err.message });
@@ -30,7 +30,7 @@ exports.runQueryById = async (req, res) => {
 
 		const pool = await poolPromise;
 		const result = await pool.request().query(selected.sql);
-		return res.json({ id: selected.id, name: selected.name, rows: result.recordset });
+		return res.json({ id: selected.id, name: selected.name, category: selected.category, rows: result.recordset });
 	} catch (err) {
 		return res.status(500).json({ message: 'Failed to run query', error: err.message });
 	}

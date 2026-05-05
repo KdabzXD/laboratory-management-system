@@ -1,51 +1,302 @@
 [
-  {"id":1,"name":"All Scientists, their Departments, Specialization Names and Gender","sql":"SELECT s.employee_id, s.scientist_name, g.gender_name, d.department_name, sp.specialization_name FROM scientist_details s JOIN gender g ON s.gender_id = g.gender_id JOIN departments d ON s.department_id = d.department_id JOIN department_specialization sp ON s.specialization_id = sp.specialization_id"},
-  {"id":2,"name":"Scientists, the Equipment Assigned and the Assignment Date","sql":"SELECT s.scientist_name, d.department_name, e.equipment_name, ea.assignment_date FROM equipment_assignment ea JOIN scientist_details s ON ea.employee_id = s.employee_id JOIN lab_equipment e ON ea.serial_number = e.serial_number JOIN departments d ON s.department_id = d.department_id ORDER BY s.scientist_name"},
-  {"id":3,"name":"All Equipment with the Supplier Details","sql":"SELECT e.equipment_name, sd.supplier_name FROM lab_equipment e JOIN supplier_details sd ON e.supplier_id = sd.supplier_id"},
-  {"id":4,"name":"Materials and Supplier Name","sql":"SELECT lm.material_name, sd.supplier_name FROM lab_materials lm JOIN supplier_details sd ON lm.supplier_id = sd.supplier_id"},
-  {"id":5,"name":"Scientists with their Full Profile","sql":"SELECT s.employee_id, s.scientist_name, s.scientist_age, g.gender_name, d.department_name, sp.specialization_name FROM scientist_details s JOIN gender g ON s.gender_id = g.gender_id JOIN departments d ON s.department_id = d.department_id JOIN department_specialization sp ON s.specialization_id = sp.specialization_id ORDER BY d.department_name, s.scientist_name"},
-  {"id":6,"name":"Equipment in Physics Department","sql":"SELECT DISTINCT e.equipment_name FROM lab_equipment e JOIN departments d ON e.department_id = d.department_id WHERE d.department_name = 'Physics'"},
-  {"id":7,"name":"Suppliers who supply both Equipment and Materials","sql":"SELECT DISTINCT sd.supplier_name FROM supplier_details sd JOIN lab_equipment e ON sd.supplier_id = e.supplier_id JOIN lab_materials lm ON sd.supplier_id = lm.supplier_id"},
-  {"id":8,"name":"All Equipment Assignments","sql":"SELECT ea.assignment_id, ea.assignment_date, s.scientist_name, d.department_name, e.equipment_name, e.equipment_cost FROM equipment_assignment ea JOIN scientist_details s ON ea.employee_id = s.employee_id JOIN departments d ON s.department_id = d.department_id JOIN lab_equipment e ON ea.serial_number = e.serial_number ORDER BY ea.assignment_date DESC"},
-  {"id":9,"name":"All Material Requests","sql":"SELECT mr.request_id, s.scientist_name, d.department_name, lm.material_name, mr.material_quantity, mr.request_date FROM material_requests mr JOIN scientist_details s ON mr.employee_id = s.employee_id JOIN departments d ON s.department_id = d.department_id JOIN lab_materials lm ON mr.reference_number = lm.reference_number ORDER BY mr.request_date DESC"},
-  {"id":10,"name":"All Purchases Details","sql":"SELECT lm.material_name, sd.supplier_name, pd.material_quantity, pd.purchase_date FROM purchase_details pd JOIN lab_materials lm ON pd.reference_number = lm.reference_number JOIN supplier_details sd ON pd.supplier_id = sd.supplier_id ORDER BY pd.purchase_date DESC"},
-  {"id":11,"name":"Departments and their Specializations","sql":"SELECT d.department_name, sp.specialization_name FROM departments d JOIN department_specialization sp ON d.department_id = sp.department_id"},
-  {"id":12,"name":"Purchases and their Costs","sql":"SELECT pd.purchase_id, pd.purchase_date, lm.material_name, pd.material_quantity, lm.material_cost, pd.material_quantity * lm.material_cost AS estimated_total_cost, sd.supplier_name FROM purchase_details pd JOIN lab_materials lm ON pd.reference_number = lm.reference_number JOIN supplier_details sd ON pd.supplier_id = sd.supplier_id ORDER BY pd.purchase_date DESC"},
-  {"id":13,"name":"Departments with their Scientists and Equipment","sql":"SELECT d.department_name, s.scientist_name, e.equipment_name FROM departments d LEFT JOIN scientist_details s ON d.department_id = s.department_id LEFT JOIN lab_equipment e ON d.department_id = e.department_id ORDER BY d.department_name, s.scientist_name"},
-  {"id":14,"name":"Suppliers in Nairobi and what they Supply","sql":"SELECT sd.supplier_name, e.equipment_name, lm.material_name FROM supplier_details sd LEFT JOIN lab_equipment e ON sd.supplier_id = e.supplier_id LEFT JOIN lab_materials lm ON sd.supplier_id = lm.supplier_id WHERE sd.supplier_location = 'Nairobi'"},
-  {"id":15,"name":"Number of Scientists per Department","sql":"SELECT d.department_name, COUNT(*) AS total_scientists FROM scientist_details s JOIN departments d ON s.department_id = d.department_id GROUP BY d.department_name"},
-  {"id":16,"name":"Number of Equipment per Department","sql":"SELECT d.department_name, COUNT(*) AS total_equipment FROM lab_equipment e JOIN departments d ON e.department_id = d.department_id GROUP BY d.department_name"},
-  {"id":17,"name":"Average Age of Scientists per Department","sql":"SELECT d.department_name, AVG(s.scientist_age) AS avg_age FROM scientist_details s JOIN departments d ON s.department_id = d.department_id GROUP BY d.department_name"},
-  {"id":18,"name":"Count of Materials each Supplier provides","sql":"SELECT sd.supplier_name, COUNT(*) AS materials_supplied FROM lab_materials lm JOIN supplier_details sd ON lm.supplier_id = sd.supplier_id GROUP BY sd.supplier_name"},
-  {"id":19,"name":"Total Cost of Equipment per Department","sql":"SELECT d.department_name, SUM(e.equipment_cost) AS total_cost FROM lab_equipment e JOIN departments d ON e.department_id = d.department_id GROUP BY d.department_name"},
-  {"id":20,"name":"Number of Assignments per Scientist","sql":"SELECT employee_id, COUNT(*) AS assignments FROM equipment_assignment GROUP BY employee_id"},
-  {"id":21,"name":"Most Requested Material","sql":"SELECT reference_number, COUNT(*) AS total_requests FROM material_requests GROUP BY reference_number ORDER BY total_requests DESC FETCH FIRST 1 ROWS ONLY"},
-  {"id":22,"name":"Purchases per Supplier","sql":"SELECT supplier_id, COUNT(*) AS purchases FROM purchase_details GROUP BY supplier_id"},
-  {"id":23,"name":"Total Material Quantities Requested","sql":"SELECT SUM(material_quantity) AS total_quantity FROM material_requests"},
-  {"id":24,"name":"Average Material Request Quantity","sql":"SELECT AVG(material_quantity) AS avg_quantity FROM material_requests"},
-  {"id":25,"name":"Scientists per Gender","sql":"SELECT g.gender_name, COUNT(*) FROM scientist_details s JOIN gender g ON s.gender_id = g.gender_id GROUP BY g.gender_name"},
-  {"id":26,"name":"Specializations per Department","sql":"SELECT department_id, COUNT(*) AS specializations FROM department_specialization GROUP BY department_id"},
-  {"id":27,"name":"Departments with more than 5 Scientists","sql":"SELECT department_id, COUNT(*) FROM scientist_details GROUP BY department_id HAVING COUNT(*) > 5"},
-  {"id":28,"name":"Suppliers Supplying more than 3 Materials","sql":"SELECT supplier_id, COUNT(*) FROM lab_materials GROUP BY supplier_id HAVING COUNT(*) > 3"},
-  {"id":29,"name":"Scientists with more than 1 Equipment Assigned","sql":"SELECT employee_id, COUNT(*) FROM equipment_assignment GROUP BY employee_id HAVING COUNT(*) > 1"},
-  {"id":30,"name":"Materials Requested more than 10 times","sql":"SELECT reference_number, COUNT(*) FROM material_requests GROUP BY reference_number HAVING COUNT(*) > 10"},
-  {"id":31,"name":"Departments with average Age above 40","sql":"SELECT department_id, AVG(scientist_age) FROM scientist_details GROUP BY department_id HAVING AVG(scientist_age) > 40"},
-  {"id":32,"name":"Suppliers with more than 2 Purchases","sql":"SELECT supplier_id, COUNT(*) FROM purchase_details GROUP BY supplier_id HAVING COUNT(*) > 2"},
-  {"id":33,"name":"Equipment used more than once","sql":"SELECT serial_number, COUNT(*) FROM equipment_assignment GROUP BY serial_number HAVING COUNT(*) > 1"},
-  {"id":34,"name":"Materials requested in quantities > 50","sql":"SELECT reference_number, SUM(material_quantity) FROM material_requests GROUP BY reference_number HAVING SUM(material_quantity) > 50"},
-  {"id":35,"name":"Scientists with more than 2 Material Requests","sql":"SELECT employee_id, COUNT(*) FROM material_requests GROUP BY employee_id HAVING COUNT(*) > 2"},
-  {"id":36,"name":"Gender groups with more than 5 Scientists","sql":"SELECT gender_id, COUNT(*) FROM scientist_details GROUP BY gender_id HAVING COUNT(*) > 5"},
-  {"id":37,"name":"Suppliers who supply more than one Material","sql":"SELECT supplier_id, COUNT(DISTINCT reference_number) AS total_materials_supplied FROM lab_materials GROUP BY supplier_id HAVING COUNT(DISTINCT reference_number) > 1"},
-  {"id":38,"name":"Scientists older than average Age","sql":"SELECT * FROM scientist_details WHERE scientist_age > (SELECT AVG(scientist_age) FROM scientist_details)"},
-  {"id":39,"name":"Equipment costing more than Average Cost","sql":"SELECT * FROM lab_equipment WHERE equipment_cost > (SELECT AVG(equipment_cost) FROM lab_equipment)"},
-  {"id":40,"name":"Scientists who never requested Materials","sql":"SELECT * FROM scientist_details s WHERE NOT EXISTS (SELECT 1 FROM material_requests mr WHERE mr.employee_id = s.employee_id)"},
-  {"id":41,"name":"Suppliers who never supplied Materials","sql":"SELECT * FROM supplier_details sd WHERE NOT EXISTS (SELECT 1 FROM lab_equipment e WHERE e.supplier_id = sd.supplier_id)"},
-  {"id":42,"name":"Most expensive Equipment","sql":"SELECT * FROM lab_equipment WHERE equipment_cost = (SELECT MAX(equipment_cost) FROM lab_equipment)"},
-  {"id":43,"name":"Scientists in Department with most Scientists","sql":"SELECT * FROM scientist_details WHERE department_id = (SELECT department_id FROM scientist_details GROUP BY department_id ORDER BY COUNT(*) DESC FETCH FIRST 1 ROWS ONLY)"},
-  {"id":44,"name":"Material with highest total Requests","sql":"SELECT reference_number FROM material_requests GROUP BY reference_number HAVING COUNT(*) = (SELECT MAX(cnt) FROM (SELECT COUNT(*) cnt FROM material_requests GROUP BY reference_number) x)"},
-  {"id":45,"name":"Department with highest Equipment Cost","sql":"SELECT department_id FROM lab_equipment GROUP BY department_id HAVING SUM(equipment_cost) = (SELECT MAX(total) FROM (SELECT SUM(equipment_cost) total FROM lab_equipment GROUP BY department_id) x)"},
-  {"id":46,"name":"Scientists with no Equipment Assigned","sql":"SELECT * FROM scientist_details s WHERE NOT EXISTS (SELECT 1 FROM equipment_assignment ea WHERE ea.employee_id = s.employee_id)"},
-  {"id":47,"name":"Suppliers with Highest Purchases","sql":"SELECT supplier_id FROM purchase_details GROUP BY supplier_id HAVING COUNT(*) = (SELECT MAX(cnt) FROM (SELECT COUNT(*) cnt FROM purchase_details GROUP BY supplier_id) x)"},
-  {"id":48,"name":"Specialization with most Scientists","sql":"SELECT specialization_id FROM scientist_details GROUP BY specialization_id HAVING COUNT(*) = (SELECT MAX(cnt) FROM (SELECT COUNT(*) cnt FROM scientist_details GROUP BY specialization_id) x)"},
-  {"id":49,"name":"Materials never Requested","sql":"SELECT * FROM lab_materials lm WHERE NOT EXISTS (SELECT 1 FROM material_requests mr WHERE mr.reference_number = lm.reference_number)"}
+  {
+    "id": 1,
+    "name": "List all scientists with their departments, specialization names and gender",
+    "category": "Scientists",
+    "sql": "SELECT s.employee_id, s.scientist_name, g.gender_name, d.department_name, sp.specialization_name\nFROM scientist_details s\nJOIN gender g ON s.gender_id = g.gender_id\nJOIN departments d ON s.department_id = d.department_id\nJOIN department_specialization sp \n  ON s.specialization_id = sp.specialization_id"
+  },
+  {
+    "id": 2,
+    "name": "Show scientists, the equipment assigned to them, and the assignment date",
+    "category": "Equipment",
+    "sql": "SELECT s.scientist_name, d.department_name, e.equipment_name, ea.assignment_date\nFROM equipment_assignment ea\nJOIN scientist_details s ON ea.employee_id = s.employee_id\nJOIN lab_equipment e ON ea.serial_number = e.serial_number\nJOIN departments d ON s.department_id = d.department_id\nORDER BY s.scientist_name"
+  },
+  {
+    "id": 3,
+    "name": "All equipment with the supplier details",
+    "category": "Suppliers",
+    "sql": "SELECT e.equipment_name, sd.supplier_name\nFROM lab_equipment e \nJOIN supplier_details sd ON e.supplier_id = sd.supplier_id"
+  },
+  {
+    "id": 4,
+    "name": "Materials and supplier name",
+    "category": "Suppliers",
+    "sql": "SELECT lm.material_name, sd.supplier_name\nFROM lab_materials lm\nJOIN supplier_details sd ON lm.supplier_id = sd.supplier_id"
+  },
+  {
+    "id": 5,
+    "name": "Scientists with their full profile",
+    "category": "Scientists",
+    "sql": "SELECT s.employee_id, s.scientist_name, s.scientist_age, g.gender_name, d.department_name, sp.specialization_name\nFROM scientist_details s\nJOIN gender g ON s.gender_id = g.gender_id\nJOIN departments d ON s.department_id = d.department_id\nJOIN department_specialization sp ON s.specialization_id = sp.specialization_id\nORDER BY d.department_name, s.scientist_name"
+  },
+  {
+    "id": 6,
+    "name": "All equipment used in the Physics department",
+    "category": "Equipment",
+    "sql": "SELECT DISTINCT e.equipment_name\nFROM lab_equipment e\nJOIN departments d ON e.department_id = d.department_id\nWHERE d.department_name = 'Physics'"
+  },
+  {
+    "id": 7,
+    "name": "Suppliers who supply both equipment and materials",
+    "category": "Suppliers",
+    "sql": "SELECT DISTINCT sd.supplier_name\nFROM supplier_details sd\nJOIN lab_equipment e ON sd.supplier_id = e.supplier_id\nJOIN lab_materials lm ON sd.supplier_id = lm.supplier_id"
+  },
+  {
+    "id": 8,
+    "name": "Equipment assignments",
+    "category": "Equipment",
+    "sql": "SELECT ea.assignment_id, ea.assignment_date, s.scientist_name, d.department_name, e.equipment_name, e.equipment_cost\nFROM equipment_assignment ea\nJOIN scientist_details s ON ea.employee_id = s.employee_id\nJOIN departments d ON s.department_id = d.department_id\nJOIN lab_equipment e ON ea.serial_number = e.serial_number\nORDER BY ea.assignment_date DESC"
+  },
+  {
+    "id": 9,
+    "name": "All assignments with the scientist name and equipment name",
+    "category": "Equipment",
+    "sql": "SELECT ea.assignment_id, s.scientist_name, e.equipment_name\nFROM equipment_assignment ea\nJOIN scientist_details s ON ea.employee_id = s.employee_id \nJOIN lab_equipment e ON ea.serial_number = e.serial_number"
+  },
+  {
+    "id": 10,
+    "name": "Material requests with scientist names, department name, quantity and request date",
+    "category": "Materials",
+    "sql": "SELECT mr.request_id, s.scientist_name, d.department_name, lm.material_name, mr.material_quantity, mr.request_date\nFROM material_requests mr\nJOIN scientist_details s ON mr.employee_id = s.employee_id\nJOIN departments d ON s.department_id = d.department_id\nJOIN lab_materials lm ON mr.reference_number = lm.reference_number\nORDER BY mr.request_date DESC"
+  },
+  {
+    "id": 11,
+    "name": "Purchases with the supplier names, material names, quantity and purchase date",
+    "category": "Purchases",
+    "sql": "SELECT lm.material_name, sd.supplier_name, pd.material_quantity, pd.purchase_date\nFROM purchase_details pd\nJOIN lab_materials lm ON pd.reference_number = lm.reference_number\nJOIN supplier_details sd ON pd.supplier_id = sd.supplier_id\nORDER BY pd.purchase_date DESC"
+  },
+  {
+    "id": 12,
+    "name": "All departments and their specializations",
+    "category": "Departments",
+    "sql": "SELECT d.department_name, sp.specialization_name\nFROM departments d\nJOIN department_specialization sp ON d.department_id = sp.department_id"
+  },
+  {
+    "id": 13,
+    "name": "Purchases and material cost",
+    "category": "Purchases",
+    "sql": "SELECT pd.purchase_id, pd.purchase_date, lm.material_name, pd.material_quantity, lm.material_cost, pd.material_quantity * lm.material_cost AS estimated_total_cost, sd.supplier_name\nFROM purchase_details pd\nJOIN lab_materials lm ON pd.reference_number = lm.reference_number\nJOIN supplier_details sd ON pd.supplier_id = sd.supplier_id\nORDER BY pd.purchase_date DESC"
+  },
+  {
+    "id": 14,
+    "name": "Departments with their scientists and equipment",
+    "category": "Equipment",
+    "sql": "SELECT d.department_name, s.scientist_name, e.equipment_name\nFROM departments d\nLEFT JOIN scientist_details s ON d.department_id = s.department_id\nLEFT JOIN lab_equipment e ON d.department_id = e.department_id\nORDER BY d.department_name, s.scientist_name"
+  },
+  {
+    "id": 15,
+    "name": "All suppliers located in Nairobi and what they supply",
+    "category": "Suppliers",
+    "sql": "SELECT sd.supplier_name, e.equipment_name, lm.material_name\nFROM supplier_details sd\nLEFT JOIN lab_equipment e ON sd.supplier_id = e.supplier_id\nLEFT JOIN lab_materials lm ON sd.supplier_id = lm.supplier_id\nWHERE sd.supplier_location = 'Nairobi'"
+  },
+  {
+    "id": 16,
+    "name": "Count the number of scientists per department",
+    "category": "Scientists",
+    "sql": "SELECT d.department_name, COUNT(*) AS total_scientists\nFROM scientist_details s\nJOIN departments d ON s.department_id = d.department_id\nGROUP BY d.department_name"
+  },
+  {
+    "id": 17,
+    "name": "Count the number of equipment per department",
+    "category": "Equipment",
+    "sql": "SELECT d.department_name, COUNT(*) AS total_equipment\nFROM lab_equipment e\nJOIN departments d ON e.department_id = d.department_id\nGROUP BY d.department_name"
+  },
+  {
+    "id": 18,
+    "name": "Find average age of scientists per department",
+    "category": "Scientists",
+    "sql": "SELECT d.department_name, AVG(s.scientist_age) AS avg_age\nFROM scientist_details s\nJOIN departments d ON s.department_id = d.department_id\nGROUP BY d.department_name"
+  },
+  {
+    "id": 19,
+    "name": "Count how many materials each supplier provides",
+    "category": "Suppliers",
+    "sql": "SELECT sd.supplier_name, COUNT(*) AS materials_supplied\nFROM lab_materials lm\nJOIN supplier_details sd ON lm.supplier_id = sd.supplier_id\nGROUP BY sd.supplier_name"
+  },
+  {
+    "id": 20,
+    "name": "Find total cost of equipment in each department",
+    "category": "Equipment",
+    "sql": "SELECT d.department_name, SUM(e.equipment_cost) AS total_cost\nFROM lab_equipment e \nJOIN departments d ON e.department_id = d.department_id\nGROUP BY d.department_name"
+  },
+  {
+    "id": 21,
+    "name": "Count number of assignments per scientist",
+    "category": "Equipment",
+    "sql": "SELECT employee_id, COUNT(*) AS assignments \nFROM equipment_assignment\nGROUP BY employee_id"
+  },
+  {
+    "id": 22,
+    "name": "Find most requested material",
+    "category": "Materials",
+    "sql": "SELECT reference_number, COUNT(*) AS total_requests\nFROM material_requests\nGROUP BY reference_number\nORDER BY total_requests DESC\nFETCH FIRST 1 ROW ONLY"
+  },
+  {
+    "id": 23,
+    "name": "Count purchases for each supplier",
+    "category": "Purchases",
+    "sql": "SELECT supplier_id, COUNT(*) AS purchases\nFROM purchase_details\nGROUP BY supplier_id"
+  },
+  {
+    "id": 24,
+    "name": "Find total material quantities requested",
+    "category": "Materials",
+    "sql": "SELECT SUM(material_quantity) AS total_quantity\nFROM material_requests"
+  },
+  {
+    "id": 25,
+    "name": "Average material request quantity",
+    "category": "Materials",
+    "sql": "SELECT AVG(material_quantity) AS avg_quantity\nFROM material_requests"
+  },
+  {
+    "id": 26,
+    "name": "Count scientists per gender",
+    "category": "Scientists",
+    "sql": "SELECT g.gender_name, COUNT(*) AS total_scientists \nFROM scientist_details s\nJOIN gender g ON s.gender_id = g.gender_id\nGROUP BY g.gender_name"
+  },
+  {
+    "id": 27,
+    "name": "Count specializations per department",
+    "category": "Departments",
+    "sql": "SELECT department_id, COUNT(*) AS specializations\nFROM department_specialization\nGROUP BY department_id"
+  },
+  {
+    "id": 28,
+    "name": "Departments with more than 5 scientists",
+    "category": "Scientists",
+    "sql": "SELECT department_id, COUNT(*) AS total_scientists \nFROM scientist_details\nGROUP BY department_id\nHAVING COUNT(*) > 5"
+  },
+  {
+    "id": 29,
+    "name": "Suppliers who supply more than 3 materials",
+    "category": "Suppliers",
+    "sql": "SELECT supplier_id, COUNT(*) AS total_materials\nFROM lab_materials\nGROUP BY supplier_id\nHAVING COUNT(*) > 3"
+  },
+  {
+    "id": 30,
+    "name": "Scientists with more than 1 equipment assigned",
+    "category": "Equipment",
+    "sql": "SELECT employee_id, COUNT(*) AS total_equipment_assigned\nFROM equipment_assignment\nGROUP BY employee_id\nHAVING COUNT(*) > 1"
+  },
+  {
+    "id": 31,
+    "name": "Materials requested more than 10 times",
+    "category": "Materials",
+    "sql": "SELECT reference_number, COUNT(*) AS total_requests\nFROM material_requests\nGROUP BY reference_number\nHAVING COUNT(*) > 10"
+  },
+  {
+    "id": 32,
+    "name": "Departments with average age above 40",
+    "category": "Scientists",
+    "sql": "SELECT department_id, AVG(scientist_age) AS average_age\nFROM scientist_details\nGROUP BY department_id\nHAVING AVG(scientist_age) > 40"
+  },
+  {
+    "id": 33,
+    "name": "Suppliers with more than 2 purchases",
+    "category": "Purchases",
+    "sql": "SELECT supplier_id, COUNT(*) AS total_purchases\nFROM purchase_details\nGROUP BY supplier_id\nHAVING COUNT(*) > 2"
+  },
+  {
+    "id": 34,
+    "name": "Equipment used more than once",
+    "category": "Equipment",
+    "sql": "SELECT serial_number, COUNT(*) AS total_assignments\nFROM equipment_assignment\nGROUP BY serial_number\nHAVING COUNT(*) > 1"
+  },
+  {
+    "id": 35,
+    "name": "Materials requested in quantities greater than 50 in total",
+    "category": "Materials",
+    "sql": "SELECT reference_number, SUM(material_quantity) AS total_quantity\nFROM material_requests\nGROUP BY reference_number\nHAVING SUM(material_quantity) > 50"
+  },
+  {
+    "id": 36,
+    "name": "Scientists who made more than 2 requests",
+    "category": "Scientists",
+    "sql": "SELECT employee_id, COUNT(*) AS total_requests\nFROM material_requests\nGROUP BY employee_id\nHAVING COUNT(*) > 2"
+  },
+  {
+    "id": 37,
+    "name": "Gender groups with more than 5 scientists",
+    "category": "Scientists",
+    "sql": "SELECT gender_id, COUNT(*) AS total_scientists\nFROM scientist_details \nGROUP BY gender_id\nHAVING COUNT(*) > 5"
+  },
+  {
+    "id": 38,
+    "name": "Suppliers who supply more than one material",
+    "category": "Suppliers",
+    "sql": "SELECT supplier_id, COUNT(DISTINCT reference_number) AS total_materials_supplied\nFROM lab_materials\nGROUP BY supplier_id\nHAVING COUNT(DISTINCT reference_number) > 1"
+  },
+  {
+    "id": 39,
+    "name": "Find scientists older than average age",
+    "category": "Scientists",
+    "sql": "SELECT * FROM scientist_details\nWHERE scientist_age > (SELECT AVG(scientist_age) FROM scientist_details)"
+  },
+  {
+    "id": 40,
+    "name": "Find equipment that costs more than the average cost",
+    "category": "Equipment",
+    "sql": "SELECT * FROM lab_equipment\nWHERE equipment_cost > (SELECT AVG(equipment_cost) FROM lab_equipment)"
+  },
+  {
+    "id": 41,
+    "name": "List of scientists who never requested materials",
+    "category": "Materials",
+    "sql": "SELECT * FROM scientist_details s\nWHERE NOT EXISTS (\nSELECT 1 FROM material_requests mr WHERE mr.employee_id = s.employee_id)"
+  },
+  {
+    "id": 42,
+    "name": "List suppliers who never supplied materials",
+    "category": "Suppliers",
+    "sql": "SELECT *\nFROM supplier_details sd\nWHERE NOT EXISTS (\n  SELECT 1\n  FROM lab_materials lm\n  WHERE lm.supplier_id = sd.supplier_id\n)"
+  },
+  {
+    "id": 43,
+    "name": "Find the most expensive equipment",
+    "category": "Equipment",
+    "sql": "SELECT * FROM lab_equipment\nWHERE equipment_cost = (SELECT MAX(equipment_cost) FROM lab_equipment)"
+  },
+  {
+    "id": 44,
+    "name": "Find scientists in department with highest number of scientists",
+    "category": "Scientists",
+    "sql": "SELECT * FROM scientist_details\nWHERE department_id = (\n SELECT department_id\n FROM scientist_details\n GROUP BY department_id\n ORDER BY COUNT(*) DESC\n FETCH FIRST 1 ROW ONLY)"
+  },
+  {
+    "id": 45,
+    "name": "Find material with highest total requests",
+    "category": "Materials",
+    "sql": "SELECT reference_number\nFROM material_requests\nGROUP BY reference_number\nHAVING COUNT(*) = (\n SELECT MAX(cnt) FROM (\n   SELECT COUNT(*) cnt FROM material_requests GROUP BY reference_number) x)"
+  },
+  {
+    "id": 46,
+    "name": "Find department with highest equipment cost",
+    "category": "Equipment",
+    "sql": "SELECT department_id\nFROM lab_equipment\nGROUP BY department_id\nHAVING SUM(equipment_cost) = (\n SELECT MAX(total) FROM (\n   SELECT SUM(equipment_cost) total FROM lab_equipment GROUP BY department_id) x)"
+  },
+  {
+    "id": 47,
+    "name": "Find scientists with no equipment assigned",
+    "category": "Equipment",
+    "sql": "SELECT * FROM scientist_details s\nWHERE NOT EXISTS (\n SELECT 1 FROM equipment_assignment ea WHERE ea.employee_id = s.employee_id)"
+  },
+  {
+    "id": 48,
+    "name": "Find suppliers with the highest purchases",
+    "category": "Purchases",
+    "sql": "SELECT supplier_id\nFROM purchase_details\nGROUP BY supplier_id\nHAVING COUNT(*) = (\n SELECT MAX(cnt) FROM (\n   SELECT COUNT(*) cnt FROM purchase_details GROUP BY supplier_id) x)"
+  },
+  {
+    "id": 49,
+    "name": "Find specialization with most scientists",
+    "category": "Scientists",
+    "sql": "SELECT specialization_id\nFROM scientist_details\nGROUP BY specialization_id\nHAVING COUNT(*) = (\n SELECT MAX(cnt) FROM (\n   SELECT COUNT(*) cnt FROM scientist_details GROUP BY specialization_id) x)"
+  },
+  {
+    "id": 50,
+    "name": "Find materials never requested",
+    "category": "Materials",
+    "sql": "SELECT * FROM lab_materials lm\nWHERE NOT EXISTS (\nSELECT 1 FROM material_requests mr WHERE mr.reference_number = lm.reference_number)"
+  }
 ]
